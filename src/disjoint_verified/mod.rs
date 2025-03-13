@@ -4,3 +4,7 @@ mod sandbox;
 mod verus_problem;
 mod non_exec_atom;
 mod non_exec_simple_v2;
+mod atom;
+mod static_rc;
+mod test_vec;
+mod exec_v1;
