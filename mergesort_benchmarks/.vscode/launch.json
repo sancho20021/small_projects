@@ -1,0 +1,83 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'mergesort_benchmarks'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=mergesort_benchmarks"
+                ],
+                "filter": {
+                    "name": "mergesort_benchmarks",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'mergesort_benchmarks'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=mergesort_benchmarks",
+                    "--package=mergesort_benchmarks"
+                ],
+                "filter": {
+                    "name": "mergesort_benchmarks",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'mergesort_benchmarks'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=mergesort_benchmarks",
+                    "--package=mergesort_benchmarks"
+                ],
+                "filter": {
+                    "name": "mergesort_benchmarks",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'parallel_split_at'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=parallel_split_at",
+                    "--package=mergesort_benchmarks"
+                ],
+                "filter": {
+                    "name": "parallel_split_at",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

@@ -1,0 +1,22 @@
+[package]
+name = "mergesort_benchmarks"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib/mod.rs"
+
+[dependencies]
+rayon = "1.10.0"
+disjoint_mut_test = { path = "../disjoint_mut_test"}
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "parallel_split_at"
+harness = false
+
+[profile.bench]
+inherits = "release"
+debug = true

@@ -1,0 +1,447 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 7  of event 'cycles'
+# Event count (approx.): 12886314
+#
+# Children      Self  Command          Shared Object         Symbol                            
+# ........  ........  ...............  ....................  ..................................
+#
+    93.91%    93.91%  mergesort_bench  [kernel.kallsyms]     [k] clear_page_erms
+            |
+            ---_start
+               _dl_start
+               _dl_start_final (inlined)
+               _dl_sysdep_start
+               dl_main
+               _dl_receive_error
+               version_check_doit
+               _dl_check_all_versions
+               _dl_check_map_versions
+               asm_exc_page_fault
+               exc_page_fault
+               do_user_addr_fault
+               handle_mm_fault
+               __handle_mm_fault
+               handle_pte_fault
+               do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  ld-linux-x86-64.so.2  [.] _start
+            |
+            ---_start
+               _dl_start
+               _dl_start_final (inlined)
+               _dl_sysdep_start
+               dl_main
+               _dl_receive_error
+               version_check_doit
+               _dl_check_all_versions
+               _dl_check_map_versions
+               asm_exc_page_fault
+               exc_page_fault
+               do_user_addr_fault
+               handle_mm_fault
+               __handle_mm_fault
+               handle_pte_fault
+               do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  ld-linux-x86-64.so.2  [.] _dl_start
+            |
+            ---_dl_start
+               _dl_start_final (inlined)
+               _dl_sysdep_start
+               dl_main
+               _dl_receive_error
+               version_check_doit
+               _dl_check_all_versions
+               _dl_check_map_versions
+               asm_exc_page_fault
+               exc_page_fault
+               do_user_addr_fault
+               handle_mm_fault
+               __handle_mm_fault
+               handle_pte_fault
+               do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  ld-linux-x86-64.so.2  [.] _dl_start_final (inlined)
+            |
+            ---_dl_start_final (inlined)
+               _dl_sysdep_start
+               dl_main
+               _dl_receive_error
+               version_check_doit
+               _dl_check_all_versions
+               _dl_check_map_versions
+               asm_exc_page_fault
+               exc_page_fault
+               do_user_addr_fault
+               handle_mm_fault
+               __handle_mm_fault
+               handle_pte_fault
+               do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  ld-linux-x86-64.so.2  [.] _dl_sysdep_start
+            |
+            ---_dl_sysdep_start
+               dl_main
+               _dl_receive_error
+               version_check_doit
+               _dl_check_all_versions
+               _dl_check_map_versions
+               asm_exc_page_fault
+               exc_page_fault
+               do_user_addr_fault
+               handle_mm_fault
+               __handle_mm_fault
+               handle_pte_fault
+               do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  ld-linux-x86-64.so.2  [.] dl_main
+            |
+            ---dl_main
+               _dl_receive_error
+               version_check_doit
+               _dl_check_all_versions
+               _dl_check_map_versions
+               asm_exc_page_fault
+               exc_page_fault
+               do_user_addr_fault
+               handle_mm_fault
+               __handle_mm_fault
+               handle_pte_fault
+               do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  ld-linux-x86-64.so.2  [.] _dl_receive_error
+            |
+            ---_dl_receive_error
+               version_check_doit
+               _dl_check_all_versions
+               _dl_check_map_versions
+               asm_exc_page_fault
+               exc_page_fault
+               do_user_addr_fault
+               handle_mm_fault
+               __handle_mm_fault
+               handle_pte_fault
+               do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  ld-linux-x86-64.so.2  [.] version_check_doit
+            |
+            ---version_check_doit
+               _dl_check_all_versions
+               _dl_check_map_versions
+               asm_exc_page_fault
+               exc_page_fault
+               do_user_addr_fault
+               handle_mm_fault
+               __handle_mm_fault
+               handle_pte_fault
+               do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  ld-linux-x86-64.so.2  [.] _dl_check_all_versions
+            |
+            ---_dl_check_all_versions
+               _dl_check_map_versions
+               asm_exc_page_fault
+               exc_page_fault
+               do_user_addr_fault
+               handle_mm_fault
+               __handle_mm_fault
+               handle_pte_fault
+               do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  ld-linux-x86-64.so.2  [.] _dl_check_map_versions
+            |
+            ---_dl_check_map_versions
+               asm_exc_page_fault
+               exc_page_fault
+               do_user_addr_fault
+               handle_mm_fault
+               __handle_mm_fault
+               handle_pte_fault
+               do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] asm_exc_page_fault
+            |
+            ---asm_exc_page_fault
+               exc_page_fault
+               do_user_addr_fault
+               handle_mm_fault
+               __handle_mm_fault
+               handle_pte_fault
+               do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] exc_page_fault
+            |
+            ---exc_page_fault
+               do_user_addr_fault
+               handle_mm_fault
+               __handle_mm_fault
+               handle_pte_fault
+               do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] do_user_addr_fault
+            |
+            ---do_user_addr_fault
+               handle_mm_fault
+               __handle_mm_fault
+               handle_pte_fault
+               do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] handle_mm_fault
+            |
+            ---handle_mm_fault
+               __handle_mm_fault
+               handle_pte_fault
+               do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] __handle_mm_fault
+            |
+            ---__handle_mm_fault
+               handle_pte_fault
+               do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] handle_pte_fault
+            |
+            ---handle_pte_fault
+               do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] do_anonymous_page
+            |
+            ---do_anonymous_page
+               alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] alloc_pages_vma
+            |
+            ---alloc_pages_vma
+               __alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] __alloc_pages
+            |
+            ---__alloc_pages
+               get_page_from_freelist
+               clear_page_erms
+
+    93.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] get_page_from_freelist
+            |
+            ---get_page_from_freelist
+               clear_page_erms
+
+     5.91%     5.91%  mergesort_bench  [kernel.kallsyms]     [k] vm_stat_account
+            |
+            ---entry_SYSCALL_64_after_hwframe
+               do_syscall_64
+               x64_sys_call
+               __x64_sys_execve
+               do_execveat_common.isra.0
+               bprm_execve
+               bprm_execve.part.0
+               exec_binprm
+               search_binary_handler
+               load_elf_binary
+               setup_arg_pages
+               vm_stat_account
+
+     5.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] entry_SYSCALL_64_after_hwframe
+            |
+            ---entry_SYSCALL_64_after_hwframe
+               do_syscall_64
+               x64_sys_call
+               __x64_sys_execve
+               do_execveat_common.isra.0
+               bprm_execve
+               bprm_execve.part.0
+               exec_binprm
+               search_binary_handler
+               load_elf_binary
+               setup_arg_pages
+               vm_stat_account
+
+     5.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] do_syscall_64
+            |
+            ---do_syscall_64
+               x64_sys_call
+               __x64_sys_execve
+               do_execveat_common.isra.0
+               bprm_execve
+               bprm_execve.part.0
+               exec_binprm
+               search_binary_handler
+               load_elf_binary
+               setup_arg_pages
+               vm_stat_account
+
+     5.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] x64_sys_call
+            |
+            ---x64_sys_call
+               __x64_sys_execve
+               do_execveat_common.isra.0
+               bprm_execve
+               bprm_execve.part.0
+               exec_binprm
+               search_binary_handler
+               load_elf_binary
+               setup_arg_pages
+               vm_stat_account
+
+     5.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] __x64_sys_execve
+            |
+            ---__x64_sys_execve
+               do_execveat_common.isra.0
+               bprm_execve
+               bprm_execve.part.0
+               exec_binprm
+               search_binary_handler
+               load_elf_binary
+               setup_arg_pages
+               vm_stat_account
+
+     5.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] do_execveat_common.isra.0
+            |
+            ---do_execveat_common.isra.0
+               bprm_execve
+               bprm_execve.part.0
+               exec_binprm
+               search_binary_handler
+               load_elf_binary
+               setup_arg_pages
+               vm_stat_account
+
+     5.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] bprm_execve
+            |
+            ---bprm_execve
+               bprm_execve.part.0
+               exec_binprm
+               search_binary_handler
+               load_elf_binary
+               setup_arg_pages
+               vm_stat_account
+
+     5.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] bprm_execve.part.0
+            |
+            ---bprm_execve.part.0
+               exec_binprm
+               search_binary_handler
+               load_elf_binary
+               setup_arg_pages
+               vm_stat_account
+
+     5.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] exec_binprm
+            |
+            ---exec_binprm
+               search_binary_handler
+               load_elf_binary
+               setup_arg_pages
+               vm_stat_account
+
+     5.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] search_binary_handler
+            |
+            ---search_binary_handler
+               load_elf_binary
+               setup_arg_pages
+               vm_stat_account
+
+     5.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] load_elf_binary
+            |
+            ---load_elf_binary
+               setup_arg_pages
+               vm_stat_account
+
+     5.91%     0.00%  mergesort_bench  [kernel.kallsyms]     [k] setup_arg_pages
+            |
+            ---setup_arg_pages
+               vm_stat_account
+
+     0.18%     0.01%  perf-exec        [kernel.kallsyms]     [k] native_write_msr
+     0.18%     0.00%  perf-exec        [kernel.kallsyms]     [k] entry_SYSCALL_64_after_hwframe
+     0.18%     0.00%  perf-exec        [kernel.kallsyms]     [k] do_syscall_64
+     0.18%     0.00%  perf-exec        [kernel.kallsyms]     [k] x64_sys_call
+     0.18%     0.00%  perf-exec        [kernel.kallsyms]     [k] __x64_sys_execve
+     0.18%     0.00%  perf-exec        [kernel.kallsyms]     [k] do_execveat_common.isra.0
+     0.18%     0.00%  perf-exec        [kernel.kallsyms]     [k] bprm_execve
+     0.18%     0.00%  perf-exec        [kernel.kallsyms]     [k] bprm_execve.part.0
+     0.18%     0.00%  perf-exec        [kernel.kallsyms]     [k] exec_binprm
+     0.18%     0.00%  perf-exec        [kernel.kallsyms]     [k] search_binary_handler
+     0.18%     0.00%  perf-exec        [kernel.kallsyms]     [k] load_elf_binary
+     0.18%     0.00%  perf-exec        [kernel.kallsyms]     [k] begin_new_exec
+     0.18%     0.00%  perf-exec        [kernel.kallsyms]     [k] perf_event_exec
+     0.18%     0.00%  perf-exec        [kernel.kallsyms]     [k] ctx_resched
+     0.18%     0.00%  perf-exec        [kernel.kallsyms]     [k] x86_pmu_enable
+     0.18%     0.00%  perf-exec        [kernel.kallsyms]     [k] intel_pmu_enable_all
+     0.17%     0.17%  perf-exec        [kernel.kallsyms]     [k] rcu_nmi_exit
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

@@ -1,0 +1,11 @@
+[package]
+name = "disjoint_mut_test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+parking_lot = "0.12.3"
+zerocopy = { version = "0.7.32", features = ["derive"] }
+builtin_macros = { git = "https://github.com/verus-lang/verus", branch = "main" }
+builtin = { git = "https://github.com/verus-lang/verus", branch = "main" }
+vstd = { git = "https://github.com/verus-lang/verus", branch = "main" }

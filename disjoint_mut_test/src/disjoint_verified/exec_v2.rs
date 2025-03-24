@@ -1,16 +1,16 @@
 use vstd::prelude::*;
 
-verus!{
+verus! {
 
 use vstd::simple_pptr::*;
 
-struct Array<T> {
+pub struct Array<T> {
     ptrs: Vec<PPtr<T>>,
 }
 
-type Perms<T> = Tracked<Map<usize, PointsTo<T>>>;
+pub type Perms<T> = Tracked<Map<usize, PointsTo<T>>>;
 
-struct Borrow<T> {
+pub struct Borrow<T> {
     index: usize,
     ptr: PPtr<T>,
     perm: Tracked<PointsTo<T>>,
@@ -84,7 +84,7 @@ impl<T> Array<T> {
         forall |j: usize| j < self.len() && i != j ==> (self.available(j, old) ==> self.available(j, new))
     }
 
-    pub closed spec fn available(self, i: usize, perms: Perms<T>) -> bool {
+    pub open spec fn available(self, i: usize, perms: Perms<T>) -> bool {
         i < self.len() && perms@.contains_key(i)
     }
 
@@ -174,14 +174,31 @@ impl<T> Array<T> {
     }
 }
 
+impl<T> Clone for Array<T> {
+    /// Shallow clone of pointers
+    /// Can be useful for sharing array across threads in Verus
+    /// because Verus doesn't support borrowing in threads
+    fn clone(&self) -> (res: Self)
+        ensures
+            forall |p: Perms<T>| self.wf(p) ==> res.wf(p),
+            forall |p: Perms<T>, i: usize| self.available(i, p) ==> res.available(i, p),
+            forall |b: Borrow<T>| self.corresponds(b) ==> res.corresponds(b),
+    {
+        Self {
+            ptrs: self.ptrs.clone(),
+        }
+    }
+}
+
 mod tests {
     /// notes: This array is kinda useless in concurrent setting
     /// because it requires mutable reference to do any action
     /// but potentially it can be split into array (vec of pointers) and permission map
     /// this way array is always shared, but permissions can be split and passed to threads
 
-    use super::{Array, Perms};
+    use super::{Array, Perms, Borrow};
     use vstd::prelude::*;
+    use vstd::simple_pptr::PointsTo;
 
     fn read(x: &i32) {}
 
@@ -219,10 +236,110 @@ mod tests {
 
         print(&array, &mut perms);
     }
+
+    pub fn concurrent() {
+        let (array, mut perms) = Array::new(vec![0, 1]);
+
+        let mut b0 = array.borrow(0, &mut perms);
+        let mut b1 = array.borrow(1, &mut perms);
+
+        let res0 = vstd::thread::spawn(move || -> (ret: Borrow<i32>)
+            ensures array.corresponds(ret), ret.wf(), ret.index() == 0
+            {
+                let mut b0 = b0;
+                b0.replace(66);
+                b0
+            }
+        );
+        let res1 = vstd::thread::spawn(move || -> (ret: Borrow<i32>)
+            ensures array.corresponds(ret), ret.wf(), ret.index() == 1
+            {
+                let mut b1 = b1;
+                b1.replace(77);
+                b1
+            }
+        );
+
+        let res0 = res0.join();
+        let res1 = res1.join();
+
+        let (b0, b1) = match (res0, res1) {
+            (Result::Ok(b0), Result::Ok(b1)) => {
+                (b0, b1)
+            },
+            _ => {
+                // panic!("error");
+                return;
+            }
+        };
+
+        array.terminate(b0, &mut perms);
+        array.terminate(b1, &mut perms);
+        print(&array, &mut perms);
+    }
+
+    pub fn concurrent2() {
+        // This is about splitting permission set
+
+        let (array, mut perms) = Array::new(vec![0, 1]);
+        let array_r1 = array.clone();
+        let array_r2 = array.clone();
+
+        let mut perms1 = Tracked(Map::<usize, PointsTo<i32>>::tracked_empty());
+        proof {
+            assert(array.available(1, perms));
+            assert(array.available(0, perms));
+            let tracked p1 = perms.borrow_mut().tracked_remove(1);
+            perms1.borrow_mut().tracked_insert(1, p1);
+        }
+
+        let perms0 = vstd::thread::spawn(move || -> (ret: Perms<i32>)
+            ensures array.available(0, ret)
+            {
+                let mut perms0 = perms;
+                let mut b0 = array_r1.borrow(0, &mut perms0);
+                b0.replace(66);
+                array_r1.terminate(b0, &mut perms0);
+                perms0
+            }
+        );
+        let perms1 = vstd::thread::spawn(move || -> (ret: Perms<i32>)
+            ensures array.available(1, ret)
+            {
+                let mut perms1 = perms1;
+                let mut b1 = array_r2.borrow(1, &mut perms1);
+                b1.replace(77);
+                array_r2.terminate(b1, &mut perms1);
+                perms1
+            }
+        );
+
+        let res0 = perms0.join();
+        let res1 = perms1.join();
+
+        let (mut perms0, mut perms1) = match (res0, res1) {
+            (Result::Ok(x0), Result::Ok(x1)) => {
+                (x0, x1)
+            },
+            _ => {
+                // panic!("error");
+                return;
+            }
+        };
+
+        proof {
+            let tracked p1 = perms1.borrow_mut().tracked_remove(1);
+            perms0.borrow_mut().tracked_insert(1, p1);
+        }
+
+        print(&array, &mut perms0);
+    }
 }
 
 fn main() {
-    tests::f();
+    // tests::f();
+    // tests::concurrent();
+    tests::concurrent2();
 }
 
 }
