@@ -26,7 +26,9 @@ impl<T> Array<T> {
         self.ptrs.len()
     }
 
-    pub fn length(&self) -> usize {
+    pub fn length(&self) -> (res: usize)
+        ensures res == self.len()
+    {
         self.ptrs.len()
     }
 
@@ -155,7 +157,12 @@ impl<T> Array<T> {
     {
         let mut res: Vec<T> = Vec::with_capacity(self.length());
         let mut i: usize = 0;
-        while i < self.length() {
+        while i < self.length()
+            invariant
+                i <= self.len(),
+                self.wf((*perms)@),
+                self.all_available(perms@),
+        {
             res.push(self.read(i, perms).clone());
             i += 1;
         }
