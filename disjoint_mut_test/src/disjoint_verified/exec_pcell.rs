@@ -118,6 +118,36 @@ impl<T> Array<T> {
         )
     }
 
+    #[verifier::external_body]
+    fn vec_replace(v: &Vec<PCell<T>>, i: usize, e: T, Tracked(perm): Tracked<&mut PointsTo<T>>) -> (res: T)
+        requires
+            i < v@.len(),
+            old(perm).is_init(),
+            v@[i as int].id() == old(perm)@.pcell,
+        ensures
+            perm.is_init(),
+            perm@.value.unwrap() == e,
+            v@[i as int].id() == perm@.pcell,
+            res == old(perm)@.value.unwrap(),
+    {
+        let vi = unsafe { v.get_unchecked(i) };
+        // panic!();
+        vi.replace(Tracked(perm), e)
+    }
+
+    #[verifier::external_body]
+    fn vec_borrow<'a>(v: &'a Vec<PCell<T>>, i: usize, Tracked(perm): Tracked<&'a PointsTo<T>>) -> (res: &'a T)
+        requires
+            i < v@.len(),
+            perm.is_init(),
+            v@[i as int].id() == perm@.pcell,
+        ensures
+            res == perm@.value.unwrap(),
+    {
+        let vi = unsafe { v.get_unchecked(i) };
+        vi.borrow(Tracked(perm))
+    }
+
     pub fn replace(&self, i: usize, x: T, perms: &mut Perms<T>) -> (res: T)
         requires
             i < self.len(),
@@ -129,7 +159,8 @@ impl<T> Array<T> {
     {
         let tracked mut perm = perms.borrow_mut().tracked_remove(i);
         let ghost old_perm = perm;
-        let res = self.ptrs[i].replace(Tracked(&mut perm), x);
+        let res = Self::vec_replace(&self.ptrs, i, x, Tracked(&mut perm));
+        // let res = self.ptrs[i].replace(Tracked(&mut perm), x);
         proof {
             perms.borrow_mut().tracked_insert(i, perm);
         }
@@ -143,7 +174,8 @@ impl<T> Array<T> {
             self.available(i, (*perms)@),
     {
         let tracked perm = perms.borrow().tracked_borrow(i);
-        self.ptrs[i].borrow(Tracked(perm))
+        Self::vec_borrow(&self.ptrs, i, Tracked(perm))
+        // self.ptrs[i].borrow(Tracked(perm))
     }
 
     /// probably it should be implemented not as clone,

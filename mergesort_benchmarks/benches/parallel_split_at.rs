@@ -147,7 +147,7 @@ fn small_config() -> Criterion {
 criterion_group! {
     name = merge_sorts;
     config = small_config();
-    // targets = parallel_mergesort, seq_mergesort, /* threadpool_mergesort,*/ array_seq_mergesort, array_par_mergesort
-    targets = rayon_par_mergesort
+    targets = /* parallel_mergesort,*/ /* seq_mergesort, */ /* threadpool_mergesort,*/ /* array_seq_mergesort, */ array_par_mergesort
+    // targets = rayon_par_mergesort
 }
 criterion_main!(merge_sorts);
