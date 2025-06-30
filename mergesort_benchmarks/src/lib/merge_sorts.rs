@@ -96,7 +96,7 @@ pub fn merge_sort_threadpool<T: Ord + Send + Copy>(arr: &mut [T], threshold: usi
 mod tests {
     use std::sync::Arc;
 
-    use disjoint_mut_test::disjoint_verified::{self, exec_pcell::Array};
+    use disjoint_mut_test::disjoint_verified::{self, exec_pcell::Array, split_at::RegionArray};
 
     use super::{merge_sort, merge_sort_parallel, merge_sort_threadpool};
 
@@ -123,20 +123,40 @@ mod tests {
 
     #[test]
     fn test_seq_array() {
-        let (arr, mut perms) = Array::new(vec![5, 4, 3, 2, 1]);
-        disjoint_verified::merge_sort::merge_sort(&arr, 0, arr.length(), &mut perms);
-        let arr = arr.clone_to_vec(&perms);
+        let (arr, mut perms) = <Array<i32> as RegionArray>::new(vec![5, 4, 3, 2, 1]);
+        let (out_arr, mut out_perms) = <Array<i32> as RegionArray>::new(vec![0, 0, 0, 0, 0]);
+        disjoint_verified::split_at::mergesort::merge_sort(
+            &arr,
+            0,
+            arr.length(),
+            &mut perms,
+            &out_arr,
+            0,
+            &mut out_perms,
+        );
+        let arr = <Array<i32> as RegionArray>::clone_to_vec(&arr, &perms);
         assert_eq!(arr, vec![1, 2, 3, 4, 5]);
     }
 
     #[test]
     fn test_par_array() {
-        let (arr, mut perms) = Array::new(vec![5, 4, 3, 2, 1]);
+        let (arr, mut perms) = <Array<i32> as RegionArray>::new(vec![5, 4, 3, 2, 1]);
+        let (out_arr, mut out_perms) = <Array<i32> as RegionArray>::new(vec![0, 0, 0, 0, 0]);
+        let out_arr = Arc::new(out_arr);
         let len = arr.length();
         let arr = Arc::new(arr);
-        disjoint_verified::merge_sort::merge_sort_parallel(Arc::clone(&arr), 0, len, &mut perms, 2)
-            .unwrap();
-        let arr = arr.clone_to_vec(&perms);
+        disjoint_verified::split_at::mergesort::merge_sort_parallel(
+            Arc::clone(&arr),
+            0,
+            len,
+            &mut perms,
+            Arc::clone(&out_arr),
+            0,
+            &mut out_perms,
+            2,
+        )
+        .unwrap();
+        let arr = <Array<i32> as RegionArray>::clone_to_vec(&arr, &perms);
         assert_eq!(arr, vec![1, 2, 3, 4, 5]);
     }
 }

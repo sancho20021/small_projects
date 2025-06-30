@@ -174,28 +174,47 @@ impl<T> RegionArray for Array<T> {
     }
 }
 
-mod mergesort {
+pub mod mergesort {
     use super::*;
     use std::sync::Arc;
 
-    fn merge(array: &Array<i32>, perms: &Region<i32>, mut left_lo: usize, left_hi: usize, mut right_lo: usize, right_hi: usize) -> (res: Vec<i32>)
+    fn merge(
+        array: &Array<i32>,
+        perms: &Region<i32>,
+        mut left_lo: usize, left_hi: usize,
+        mut right_lo: usize, right_hi: usize,
+        out_array: &Array<i32>,
+        out_perms: &mut Region<i32>,
+        mut out_lo: usize,
+    )
         requires
             perms.lo() <= left_lo <= left_hi <= perms.hi() <= array.len(),
             perms.lo() <= right_lo <= right_hi <= perms.hi() <= array.len(),
             left_hi - left_lo + right_hi - right_lo <= usize::MAX,
             <Array<i32> as RegionArray>::wf(*array, (*perms)),
+            <Array<i32> as RegionArray>::wf(*out_array, *old(out_perms)),
+            old(out_perms).lo() <= out_lo <= out_lo + (left_hi - left_lo + right_hi - right_lo) <= old(out_perms).hi() <= out_array.len(),
+            out_lo + right_hi - right_lo + left_hi - left_lo <= old(out_perms).hi(),
         ensures
-            res.len() == left_hi - left_lo + right_hi - right_lo,
+            // res.len() == left_hi - left_lo + right_hi - right_lo,
+            <Array<i32> as RegionArray>::wf(*out_array, *out_perms),
+            old(out_perms).lo() == out_perms.lo(),
+            old(out_perms).hi() == out_perms.hi(),
     {
+        let ghost old_out_lo = out_lo;
         let ghost old_left_lo = left_lo;
         let ghost old_right_lo = right_lo;
-        let mut ret: Vec<i32> = Vec::with_capacity(left_hi - left_lo + (right_hi - right_lo));
         while left_lo < left_hi && right_lo < right_hi
             invariant
                 <Array<i32> as RegionArray>::wf(*array, (*perms)),
                 perms.lo() <= left_lo <= left_hi <= perms.hi() <= array.len(),
                 perms.lo() <= right_lo <= right_hi <= perms.hi() <= array.len(),
-                left_hi - left_lo + right_hi - right_lo + ret.len() == left_hi - old_left_lo + right_hi - old_right_lo,
+                <Array<i32> as RegionArray>::wf(*out_array, *out_perms),
+                out_perms.lo() <= out_lo <= old_out_lo + (left_hi - old_left_lo + right_hi - old_right_lo) <= out_perms.hi() <= out_array.len(),
+                out_lo == old_out_lo + (left_lo - old_left_lo) + (right_lo - old_right_lo),
+                old_out_lo + right_hi - old_right_lo + left_hi - old_left_lo <= old(out_perms).hi(),
+                old(out_perms).lo() == out_perms.lo(),
+                old(out_perms).hi() == out_perms.hi(),
         {
             let element: i32;
             if <Array<i32> as RegionArray>::read(array, left_lo, perms) < <Array<i32> as RegionArray>::read(array, right_lo, perms) {
@@ -205,120 +224,182 @@ mod mergesort {
                 element = *<Array<i32> as RegionArray>::read(array, right_lo, perms);
                 right_lo += 1;
             }
-            ret.push(element);
+            <Array<i32> as RegionArray>::replace(out_array, out_lo, element, out_perms);
+            out_lo += 1;
         }
 
         if left_lo < left_hi {
             while left_lo < left_hi
                 invariant
                     <Array<i32> as RegionArray>::wf(*array, (*perms)),
-                    left_hi - left_lo + right_hi - right_lo + ret.len() == left_hi - old_left_lo + right_hi - old_right_lo,
+                    left_hi - left_lo + right_hi - right_lo + out_lo - old_out_lo == left_hi - old_left_lo + right_hi - old_right_lo,
                     perms.lo() <= left_lo <= left_hi <= perms.hi() <= array.len(),
+                    perms.lo() <= right_lo <= right_hi,
+                    <Array<i32> as RegionArray>::wf(*out_array, *out_perms),
+                    out_perms.lo() <= out_lo <= out_perms.hi() <= out_array.len(),
+                    out_lo == old_out_lo + (left_lo - old_left_lo) + (right_lo - old_right_lo),
+                    out_lo <= old_out_lo + left_lo - old_left_lo + right_hi - old_right_lo,
+                    old_out_lo + right_hi - old_right_lo + left_hi - old_left_lo <= old(out_perms).hi(),
+                    old(out_perms).lo() == out_perms.lo(),
+                    old(out_perms).hi() == out_perms.hi(),
             {
-                ret.push(*<Array<i32> as RegionArray>::read(array, left_lo, perms));
+                let e = *<Array<i32> as RegionArray>::read(array, left_lo, perms);
+                <Array<i32> as RegionArray>::replace(out_array, out_lo, e, out_perms);
                 left_lo += 1;
+                out_lo += 1;
             }
         } else if right_lo < right_hi {
             while right_lo < right_hi
                 invariant
                     <Array<i32> as RegionArray>::wf(*array, (*perms)),
-                    left_hi - left_lo + right_hi - right_lo + ret.len() == left_hi - old_left_lo + right_hi - old_right_lo,
+                    left_hi - left_lo + right_hi - right_lo + out_lo - old_out_lo == left_hi - old_left_lo + right_hi - old_right_lo,
                     perms.lo() <= right_lo <= right_hi <= perms.hi() <= array.len(),
+                    perms.lo() <= left_lo <= left_hi,
+                    <Array<i32> as RegionArray>::wf(*out_array, *out_perms),
+                    out_perms.lo() <= out_lo <= out_perms.hi() <= out_array.len(),
+                    out_lo == old_out_lo + (left_lo - old_left_lo) + (right_lo - old_right_lo),
+                    out_lo <= old_out_lo + left_lo - old_left_lo + right_hi - old_right_lo,
+                    old_out_lo + right_hi - old_right_lo + left_hi - old_left_lo <= old(out_perms).hi(),
+                    old(out_perms).lo() == out_perms.lo(),
+                    old(out_perms).hi() == out_perms.hi(),
             {
-                ret.push(*<Array<i32> as RegionArray>::read(array, right_lo, perms));
+                let e = *<Array<i32> as RegionArray>::read(array, right_lo, perms);
+                <Array<i32> as RegionArray>::replace(out_array, out_lo, e, out_perms);
                 right_lo += 1;
+                out_lo += 1;
             }
         }
-        ret
     }
 
-    pub fn merge_sort(arr: &Array<i32>, lo: usize, hi: usize, perms: &mut Region<i32>)
+    pub fn merge_sort(
+        arr: &Array<i32>,
+        mut lo: usize, hi: usize,
+        perms: &mut Region<i32>,
+        out_arr: &Array<i32>,
+        mut out_lo: usize,
+        out_perms: &mut Region<i32>,
+    )
         requires
             old(perms).lo() <= lo <= hi <= old(perms).hi() <= arr.len(),
             <Array<i32> as RegionArray>::wf(*arr, (*old(perms))),
+            old(out_perms).lo() <= out_lo <= out_lo + hi - lo <= old(out_perms).hi() <= out_arr.len(),
+            <Array<i32> as RegionArray>::wf(*out_arr, (*old(out_perms))),
         ensures
             <Array<i32> as RegionArray>::wf(*arr, (*perms)),
             perms.lo() == old(perms).lo(),
             perms.hi() == old(perms).hi(),
+            <Array<i32> as RegionArray>::wf(*out_arr, *out_perms),
+            out_perms.lo() == old(out_perms).lo(),
+            out_perms.hi() == old(out_perms).hi(),
     {
+        let ghost old_out_lo = out_lo;
+        let ghost old_lo = lo;
         let mid = lo + (hi - lo) / 2;
         if mid == lo {
             return;
         }
 
         let ghost old_perms = *perms;
-        merge_sort(arr, lo, mid, perms);
+        merge_sort(arr, lo, mid, perms, out_arr, out_lo, out_perms);
         let ghost perms1 = *perms;
-        merge_sort(arr, mid, hi, perms);
+        merge_sort(arr, mid, hi, perms, out_arr, out_lo, out_perms);
 
-        let res = merge(arr, perms, lo, mid, mid, hi);
-        let mut i: usize = 0;
-        while i < res.len()
+        merge(arr, perms, lo, mid, mid, hi, out_arr, out_perms, out_lo);
+        while lo < hi
             invariant
                 perms.lo() == old(perms).lo(),
                 perms.hi() == old(perms).hi(),
-                perms.lo() <= lo + i <= hi <= perms.hi() <= arr.len(),
-                hi - lo == res.len(),
+                perms.lo() <= lo <= hi <= perms.hi() <= arr.len(),
                 <Array<i32> as RegionArray>::wf(*arr, (*perms)),
+                <Array<i32> as RegionArray>::wf(*out_arr, *out_perms),
+                out_perms.lo() == old(out_perms).lo(),
+                out_perms.hi() == old(out_perms).hi(),
+                out_perms.lo() <= out_lo <= out_perms.hi() <= out_arr.len(),
+                out_lo <= old_out_lo + hi - old_lo <= old(out_perms).hi(),
+                out_lo - old_out_lo == lo - old_lo,
         {
             let ghost perms_prev = *perms;
-            <Array<i32> as RegionArray>::replace(arr, lo + i, res[i], perms);
-            i += 1;
+            let e = *<Array<i32> as RegionArray>::read(out_arr, out_lo, out_perms);
+            <Array<i32> as RegionArray>::replace(arr, lo, e, perms);
+            out_lo += 1;
+            lo += 1;
         }
     }
 
     pub fn merge_sort_parallel(
         arr: Arc<Array<i32>>,
-        lo: usize, hi: usize,
+        mut lo: usize, hi: usize,
         perms: &mut Region<i32>,
+        out_arr: Arc<Array<i32>>,
+        mut out_lo: usize,
+        out_perms: &mut Region<i32>,
         threshold: usize
     ) -> (ret: Result<(), &'static str>)
         requires
             old(perms).lo() <= lo <= hi <= old(perms).hi() <= arr.len(),
             <Array<i32> as RegionArray>::wf(*arr, (*old(perms))),
+            old(out_perms).lo() <= out_lo <= out_lo + hi - lo <= old(out_perms).hi() <= out_arr.len(),
+            <Array<i32> as RegionArray>::wf(*out_arr, *old(out_perms)),
         ensures
             ret.is_ok() ==> <Array<i32> as RegionArray>::wf(*arr, (*perms)),
             ret.is_ok() ==> old(perms).lo() == perms.lo() && old(perms).hi() == perms.hi(),
+            ret.is_ok() ==> <Array<i32> as RegionArray>::wf(*out_arr, *out_perms),
+            ret.is_ok() ==> old(out_perms).lo() == out_perms.lo() && old(out_perms).hi() == out_perms.hi(),
     {
         let ghost old_perms = *old(perms);
+        let ghost old_out_perms = *old(out_perms);
+        let ghost old_out_lo = out_lo;
+        let ghost old_lo = lo;
         let mid = lo + (hi - lo) / 2;
+        let out_mid = out_lo + (hi - lo) / 2;
         if mid == lo {
             return Ok(());
         }
 
         if hi - lo < threshold {
-            merge_sort(&*arr, lo, hi, perms);
+            merge_sort(&*arr, lo, hi, perms, &*out_arr, out_lo, out_perms);
             return Ok(());
         }
 
         let right_perms = (&*arr).split_off(mid, perms);
         let left_perms = (&*arr).split_off(lo, perms);
 
+        let out_right_perms = (&*out_arr).split_off(out_mid, out_perms);
+        let out_left_perms = (&*out_arr).split_off(out_lo, out_perms);
+
         let arr_r1 = Arc::clone(&arr);
         let arr_r2 = Arc::clone(&arr);
 
-        let left_perms = vstd::thread::spawn(move || -> (ret: Result<Region<i32>, ()>)
+        let out_arr_r1 = Arc::clone(&out_arr);
+        let out_arr_r2 = Arc::clone(&out_arr);
+
+        let left_perms = vstd::thread::spawn(move || -> (ret: Result<(Region<i32>, Region<i32>), ()>)
             ensures
-                ret.is_ok() ==> <Array<i32> as RegionArray>::wf(*arr, ret.unwrap()) && ret.unwrap().lo() == lo && ret.unwrap().hi() == mid,
+                ret.is_ok() ==> <Array<i32> as RegionArray>::wf(*arr, ret.unwrap().0) && ret.unwrap().0.lo() == lo && ret.unwrap().0.hi() == mid,
+                ret.is_ok() ==> <Array<i32> as RegionArray>::wf(*out_arr,ret.unwrap().1) && ret.unwrap().1.lo() == out_lo && ret.unwrap().1.hi() == out_mid,
             {
                 let mut left_perms = left_perms;
+                let mut out_left_perms = out_left_perms;
                 let ghost old_left_perms = left_perms;
-                let t = merge_sort_parallel(arr_r1, lo, mid, &mut left_perms, threshold);
+                let ghost old_out_left_perms = out_left_perms;
+                let t = merge_sort_parallel(arr_r1, lo, mid, &mut left_perms, out_arr_r1, out_lo, &mut out_left_perms, threshold);
                 if t.is_err() {
                     return Err(());
                 } else {
-                    Ok(left_perms)
+                    Ok((left_perms, out_left_perms))
                 }
             }
         );
 
-        let right_perms = vstd::thread::spawn(move || -> (ret: Result<Region<i32>, ()>)
+        let right_perms = vstd::thread::spawn(move || -> (ret: Result<(Region<i32>, Region<i32>), ()>)
             ensures
-                    ret.is_ok() ==> <Array<i32> as RegionArray>::wf(*arr, ret.unwrap()) && ret.unwrap().lo() == mid && ret.unwrap().hi() == old_perms.hi(),
+                    ret.is_ok() ==> <Array<i32> as RegionArray>::wf(*arr, ret.unwrap().0) && ret.unwrap().0.lo() == mid && ret.unwrap().0.hi() == old_perms.hi(),
+                    ret.is_ok() ==> <Array<i32> as RegionArray>::wf(*out_arr, ret.unwrap().1) && ret.unwrap().1.lo() == out_mid && ret.unwrap().1.hi() == old_out_perms.hi(),
             {
                 let mut right_perms = right_perms;
-                match merge_sort_parallel(arr_r2, mid, hi, &mut right_perms, threshold) {
-                    Ok(()) => Ok(right_perms),
+                let mut out_right_perms = out_right_perms;
+                match merge_sort_parallel(arr_r2, mid, hi, &mut right_perms, out_arr_r2, out_mid, &mut out_right_perms, threshold) {
+                    Ok(()) => Ok((right_perms, out_right_perms)),
                     Err(_) => Err(()),
                 }
             }
@@ -327,7 +408,7 @@ mod mergesort {
         let left_perms = left_perms.join();
         let right_perms = right_perms.join();
 
-        let (mut left_perms, mut right_perms) = match (left_perms, right_perms) {
+        let ((mut left_perms, mut out_left_perms), (mut right_perms, mut out_right_perms)) = match (left_perms, right_perms) {
             (Result::Ok(Ok(l)), Result::Ok(Ok(r))) => {
                 (l, r)
             },
@@ -337,18 +418,27 @@ mod mergesort {
         };
         (&*arr).merge(&mut left_perms, right_perms);
         (&*arr).merge(perms, left_perms);
+        (&*out_arr).merge(&mut out_left_perms, out_right_perms);
+        (&*out_arr).merge(out_perms, out_left_perms);
 
-        let res = merge(&arr, perms, lo, mid, mid, hi);
-        let mut i = 0;
-        while i < res.len()
+        merge(&arr, perms, lo, mid, mid, hi, &out_arr, out_perms, out_lo);
+        while lo < hi
             invariant
                 perms.lo() == old_perms.lo(),
                 perms.hi() == old_perms.hi(),
-                perms.lo() <= lo <= lo + res.len() <= perms.hi(),
+                perms.lo() <= lo <= hi <= perms.hi() <= arr.len(),
                 <Array<i32> as RegionArray>::wf(*arr, *perms),
+                <Array<i32> as RegionArray>::wf(*out_arr, *out_perms),
+                out_perms.lo() == old(out_perms).lo(),
+                out_perms.hi() == old(out_perms).hi(),
+                out_perms.lo() <= out_lo <= out_perms.hi() <= out_arr.len(),
+                out_lo <= old_out_lo + hi - old_lo <= old(out_perms).hi(),
+                out_lo - old_out_lo == lo - old_lo,
         {
-            <Array<i32> as RegionArray>::replace(&*arr, lo + i, res[i], perms);
-            i += 1;
+            let e = *<Array<i32> as RegionArray>::read(&*out_arr, out_lo, out_perms);
+            <Array<i32> as RegionArray>::replace(&*arr, lo, e, perms);
+            out_lo += 1;
+            lo += 1;
         }
         Ok(())
     }
@@ -358,7 +448,9 @@ mod mergesort {
         let (arr, mut perms) = <Array<i32> as RegionArray>::new(vec![5, 4, 3, 2, 1]);
         let len = arr.length();
         let arr = Arc::new(arr);
-        merge_sort_parallel(Arc::clone(&arr), 0, len, &mut perms, 2).unwrap();
+        let (out_arr, mut out_perms) = <Array<i32> as RegionArray>::new(vec![0, 0, 0, 0, 0]);
+        let out_arr = Arc::new(out_arr);
+        merge_sort_parallel(Arc::clone(&arr), 0, len, &mut perms, Arc::clone(&out_arr), 0, &mut out_perms, 2).unwrap();
         let arr = <Array<i32> as RegionArray>::clone_to_vec(&arr, &perms);
         assert_eq!(arr, vec![1, 2, 3, 4, 5]);
     }

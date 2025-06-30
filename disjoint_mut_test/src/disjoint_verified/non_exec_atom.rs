@@ -256,7 +256,7 @@ fn main() {
 
         let i1a = c2.borrow(Tracked(&mut p2));
 
-        c1.terminate(Tracked(&mut p1), i1a);
+        // c1.terminate(Tracked(&mut p1), i1a);
 
         // let i0b = c1.borrow(Tracked(&mut p2));  // not accepted
         // let m0b = c1.borrow_mut(Tracked(&mut p2));  // not accepted

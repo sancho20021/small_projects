@@ -130,6 +130,9 @@ impl<T> Array<T> {
             v@[i as int].id() == perm@.pcell,
             res == old(perm)@.value.unwrap(),
     {
+        // if i >= v.len() {
+        //     panic!("Lol");
+        // }
         let vi = unsafe { v.get_unchecked(i) };
         // panic!();
         vi.replace(Tracked(perm), e)
@@ -144,6 +147,9 @@ impl<T> Array<T> {
         ensures
             res == perm@.value.unwrap(),
     {
+        // if i >= v.len() {
+        //     panic!("Lol");
+        // }
         let vi = unsafe { v.get_unchecked(i) };
         vi.borrow(Tracked(perm))
     }
