@@ -1,5 +1,9 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use disjoint_mut_test::disjoint_verified::{self, exec_pcell::Array, split_at::RegionArray};
+use disjoint_mut_test::disjoint_verified::{
+    self,
+    exec_pcell::Array,
+    split_at::{ArrayAbstraction, RegionArray},
+};
 use mergesort_benchmarks::merge_sorts::{merge_sort, merge_sort_parallel, merge_sort_threadpool};
 use rayon::slice::ParallelSliceMut;
 use std::{hint::black_box, sync::Arc, time::Duration};
@@ -73,25 +77,17 @@ fn seq_mergesort(c: &mut Criterion) {
 fn array_seq_mergesort(c: &mut Criterion) {
     for size in ARRAY_SIZES {
         let arr = black_box(get_reversed_array(size));
-        let (arr, mut perms) = <Array<i32> as RegionArray>::new(arr);
-        let (out_arr, mut out_perms) = <Array<i32> as RegionArray>::new(vec![0; size]);
+        let mut arr = ArrayAbstraction::new(arr);
         c.bench_with_input(
             BenchmarkId::new("array_seq_mergesort", size),
             &size,
             |b, _| {
                 b.iter(|| {
-                    let perms = black_box(&mut perms);
-                    let out_perms = black_box(&mut out_perms);
-                    disjoint_verified::split_at::mergesort::merge_sort(
-                        black_box(&arr),
-                        0,
-                        arr.length(),
-                        perms,
-                        black_box(&out_arr),
-                        0,
-                        out_perms,
+                    let out_arr = vec![0; arr.array.length()];
+                    disjoint_verified::split_at::mergesort::merge_sort_abstraction(
+                        black_box(&mut arr),
+                        black_box(out_arr),
                     );
-                    black_box(perms);
                 });
             },
         );
@@ -101,29 +97,19 @@ fn array_seq_mergesort(c: &mut Criterion) {
 fn array_par_mergesort(c: &mut Criterion) {
     for size in ARRAY_SIZES {
         let arr = black_box(get_reversed_array(size));
-        let (arr, mut perms) = <Array<i32> as RegionArray>::new(arr);
-        let arr = Arc::new(arr);
-        let (out_arr, mut out_perms) = <Array<i32> as RegionArray>::new(vec![0; size]);
-        let out_arr = Arc::new(out_arr);
+        let mut arr = ArrayAbstraction::new(arr);
         c.bench_with_input(
             BenchmarkId::new("array_par_mergesort", size),
             &size,
             |b, _| {
                 b.iter(|| {
-                    let perms = black_box(&mut perms);
-                    let out_perms = black_box(&mut out_perms);
-                    disjoint_verified::split_at::mergesort::merge_sort_parallel(
-                        black_box(Arc::clone(&arr)),
-                        0,
-                        arr.length(),
-                        perms,
-                        black_box(Arc::clone(&out_arr)),
-                        0,
-                        out_perms,
+                    let out_array = vec![0; arr.array.length()];
+                    disjoint_verified::split_at::mergesort::merge_sort_parallel_abstraction(
+                        &mut arr,
+                        black_box(out_array),
                         SORT_PARALLEL_THRESHOLD,
                     )
                     .unwrap();
-                    black_box(perms);
                 });
             },
         );
@@ -147,7 +133,9 @@ fn rayon_par_mergesort(c: &mut Criterion) {
     }
 }
 
-static ARRAY_SIZES: [usize; 2] = [/* 50_000, 100_000, 500_000, 1_000_000,*/ 2_000_000, 4_000_000];
+static ARRAY_SIZES: [usize; 2] = [
+    /* 50_000, 100_000, 500_000, 1_000_000,*/ 2_000_000, 4_000_000,
+];
 
 fn small_config() -> Criterion {
     Criterion::default()
@@ -158,7 +146,7 @@ fn small_config() -> Criterion {
 criterion_group! {
     name = merge_sorts;
     config = small_config();
-    targets = /* parallel_mergesort,*/ seq_mergesort, /* threadpool_mergesort,*/ array_seq_mergesort,/* array_par_mergesort */
+    targets = parallel_mergesort, seq_mergesort, /* threadpool_mergesort,*/ array_seq_mergesort, array_par_mergesort
     // targets = rayon_par_mergesort
 }
 criterion_main!(merge_sorts);

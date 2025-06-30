@@ -5,6 +5,8 @@ verus! {
 use vstd::cell::*;
 use std::sync::Arc;
 
+pub type VerusTracked<T> = Tracked<T>;
+
 pub struct Array<T> {
     ptrs: Vec<PCell<T>>,
 }
@@ -154,32 +156,32 @@ impl<T> Array<T> {
         vi.borrow(Tracked(perm))
     }
 
-    pub fn replace(&self, i: usize, x: T, perms: &mut Perms<T>) -> (res: T)
+    pub fn replace(&self, i: usize, x: T, Tracked(perms): Tracked<&mut SpecPerms<T>>) -> (res: T)
         requires
             i < self.len(),
-            self.wf((*old(perms))@),
-            self.available(i, (*old(perms))@),
+            self.wf(*old(perms)),
+            self.available(i, *old(perms)),
         ensures
-            self.availability_unchanged((*old(perms))@, (*perms)@),
-            self.wf((*perms)@)
+            self.availability_unchanged(*old(perms), *perms),
+            self.wf(*perms)
     {
-        let tracked mut perm = perms.borrow_mut().tracked_remove(i);
+        let tracked mut perm = perms.tracked_remove(i);
         let ghost old_perm = perm;
         let res = Self::vec_replace(&self.ptrs, i, x, Tracked(&mut perm));
         // let res = self.ptrs[i].replace(Tracked(&mut perm), x);
         proof {
-            perms.borrow_mut().tracked_insert(i, perm);
+            perms.tracked_insert(i, perm);
         }
         res
     }
 
-    pub fn read<'a>(&'a self, i: usize, perms: &'a Perms<T>) -> (res: &'a T)
+    pub fn read<'a>(&'a self, i: usize, Tracked(perms): Tracked<&'a SpecPerms<T>>) -> (res: &'a T)
         requires
             i < self.len(),
-            self.wf((*perms)@),
-            self.available(i, (*perms)@),
+            self.wf(*perms),
+            self.available(i, *perms),
     {
-        let tracked perm = perms.borrow().tracked_borrow(i);
+        let tracked perm = perms.tracked_borrow(i);
         Self::vec_borrow(&self.ptrs, i, Tracked(perm))
         // self.ptrs[i].borrow(Tracked(perm))
     }
@@ -187,21 +189,21 @@ impl<T> Array<T> {
     /// probably it should be implemented not as clone,
     /// but as consuming into Vec<T>,
     /// but to make it faster I have to cast?? TODO
-    pub fn clone_to_vec<'a>(&'a self, perms: &'a Perms<T>) -> (res: Vec<T>)
+    pub fn clone_to_vec<'a>(&'a self, Tracked(perms): Tracked<&'a SpecPerms<T>>) -> (res: Vec<T>)
         where T: Clone,
         requires
-            self.wf(perms@),
-            self.all_available(perms@),
+            self.wf(*perms),
+            self.all_available(*perms),
     {
         let mut res: Vec<T> = Vec::with_capacity(self.length());
         let mut i: usize = 0;
         while i < self.length()
             invariant
                 i <= self.len(),
-                self.wf((*perms)@),
-                self.all_available(perms@),
+                self.wf(*perms),
+                self.all_available(*perms),
         {
-            res.push(self.read(i, perms).clone());
+            res.push(self.read(i, Tracked(perms)).clone());
             i += 1;
         }
         res
@@ -209,40 +211,40 @@ impl<T> Array<T> {
 }
 
 fn main() {
-    let (array, mut perms) = Array::new(vec![0, 1]);
+    let (array, Tracked(mut perms)) = Array::new(vec![0, 1]);
     let array = Arc::new(array);
     let array_r1 = Arc::clone(&array);
     let array_r2 = Arc::clone(&array);
 
-    let mut perms1 = Tracked(Map::<usize, PointsTo<i32>>::tracked_empty());
+    let Tracked(mut perms1) = Tracked(Map::<usize, PointsTo<i32>>::tracked_empty());
     proof {
-        assert(array.available(1, perms@));
-        assert(array.available(0, perms@));
-        let tracked p1 = perms.borrow_mut().tracked_remove(1);
-        perms1.borrow_mut().tracked_insert(1, p1);
+        assert(array.available(1, perms));
+        assert(array.available(0, perms));
+        let tracked p1 = perms.tracked_remove(1);
+        perms1.tracked_insert(1, p1);
     }
 
     let perms0 = vstd::thread::spawn(move || -> (ret: Perms<i32>)
         ensures array.available(0, ret@)
         {
-            let mut perms0 = perms;
-            (*array_r1).replace(0, 66, &mut perms0);
-            perms0
+            let tracked mut perms0 = perms;
+            (*array_r1).replace(0, 66, Tracked(&mut perms0));
+            Tracked(perms0)
         }
     );
     let perms1 = vstd::thread::spawn(move || -> (ret: Perms<i32>)
         ensures array.available(1, ret@)
         {
-            let mut perms1 = perms1;
-            (*array_r2).replace(1, 77, &mut perms1);
-            perms1
+            let tracked mut perms1 = perms1;
+            (*array_r2).replace(1, 77, Tracked(&mut perms1));
+            Tracked(perms1)
         }
     );
 
     let res0 = perms0.join();
     let res1 = perms1.join();
 
-    let (mut perms0, mut perms1) = match (res0, res1) {
+    let (Tracked(mut perms0), Tracked(mut perms1)) = match (res0, res1) {
         (Result::Ok(x0), Result::Ok(x1)) => {
             (x0, x1)
         },
@@ -253,19 +255,19 @@ fn main() {
     };
 
     proof {
-        let tracked p1 = perms1.borrow_mut().tracked_remove(1);
-        perms0.borrow_mut().tracked_insert(1, p1);
+        let tracked p1 = perms1.tracked_remove(1);
+        perms0.tracked_insert(1, p1);
     }
 
-    print(&array, &mut perms0);
+    print(&array, Tracked(&mut perms0));
 }
 
 #[verifier::external_body]
-fn print<T: std::fmt::Debug>(a: &Array<T>, perms: &mut Perms<T>)
-    requires a.all_available((*old(perms))@)
+fn print<T: std::fmt::Debug>(a: &Array<T>, Tracked(perms): Tracked<&mut SpecPerms<T>>)
+    requires a.all_available(*old(perms))
 {
     for i in 0..a.length() {
-        let b = a.read(i, perms);
+        let b = a.read(i, Tracked(perms));
         print!("{:?} ", b);
     }
     println!("");
