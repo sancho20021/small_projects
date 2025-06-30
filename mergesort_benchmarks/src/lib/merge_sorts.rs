@@ -99,7 +99,7 @@ mod tests {
     use disjoint_mut_test::disjoint_verified::{
         self,
         exec_pcell::Array,
-        split_at::{ArrayAbstraction, RegionArray},
+        split_at::{ArrayAbstraction},
     };
 
     use super::{merge_sort, merge_sort_parallel, merge_sort_threadpool};

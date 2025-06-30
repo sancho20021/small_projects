@@ -2,7 +2,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use disjoint_mut_test::disjoint_verified::{
     self,
     exec_pcell::Array,
-    split_at::{ArrayAbstraction, RegionArray},
+    split_at::{ArrayAbstraction},
 };
 use mergesort_benchmarks::merge_sorts::{merge_sort, merge_sort_parallel, merge_sort_threadpool};
 use rayon::slice::ParallelSliceMut;

@@ -9,7 +9,7 @@ verus! {
 use std::marker::Sized;
 use super::exec_pcell::{Array, Perms};
 
-pub struct Region<T> {
+pub tracked struct Region<T> {
     tracked lo: usize,
     tracked hi: usize,
     perms: SpecPerms<T>,
@@ -35,9 +35,9 @@ impl<T> ArrayAbstraction<T> {
         where Self: std::marker::Sized,
         ensures
             data.len() == res.array.len(),
-            <Array<T> as RegionArray>::wf(*res.array, res.perms@),
+            region_array::wf(*res.array, res.perms@),
     {
-        let (array, perms) = <Array<T> as RegionArray>::new(data);
+        let (array, perms) = region_array::new(data);
         Self {
             array: Arc::new(array),
             perms
@@ -49,109 +49,56 @@ impl<T> ArrayAbstraction<T> {
         Self: Sized,
         T: Clone,
     requires
-        <Array<T> as RegionArray>::wf(*self.array, self.perms@),
+        region_array::wf(*self.array, self.perms@),
         self.perms@.lo() == 0,
         self.perms@.hi() == self.array.len()
     {
-        <Array<T> as RegionArray>::clone_to_vec(&self.array, Tracked(self.perms.borrow()))
+        region_array::clone_to_vec(&self.array, Tracked(self.perms.borrow()))
     }
 }
 
-pub trait RegionArray {
-    type T;
-    spec fn wf(self, region: Region<Self::T>) -> bool
-        where Self: std::marker::Sized;
+pub mod region_array {
+    use super::super::exec_pcell::Array;
+    use super::Region;
+    use vstd::prelude::*;
 
-    spec fn len(&self) -> usize where Self: Sized;
+    pub closed spec fn wf<T>(aself: Array<T>, region: Region<T>) -> bool {
+        region.lo <= region.hi <= aself.len() && aself.wf(region.perms) && forall |i: usize| region.lo <= i < region.hi ==> aself.available(i, region.perms)
+    }
 
-    fn split_at(&self, m: usize, Tracked(region): Tracked<Region<Self::T>>) -> (res: (Tracked<Region<Self::T>>, Tracked<Region<Self::T>>))
-        where Self: std::marker::Sized,
-        requires
-            region.lo() <= m@ < region.hi(),
-            self.wf(region),
-        ensures
-            self.wf(res.0@),
-            res.0@.lo() == region.lo(),
-            res.0@.hi() == m,
-            self.wf(res.1@),
-            res.1@.lo() == m,
-            res.1@.hi() == region.hi();
+    pub proof fn split_at<T>(aself: &Array<T>, tracked m: usize, tracked mut region: Region<T>) -> (tracked res: (Region<T>, Region<T>))
+        where
+            requires
+                region.lo() <= m@ < region.hi(),
+                wf(*aself, region),
+            ensures
+                wf(*aself, res.0),
+                res.0.lo() == region.lo(),
+                res.0.hi() == m,
+                wf(*aself, res.1),
+                res.1.lo() == m,
+                res.1.hi() == region.hi()
+    {
+        let tracked right = split_off(aself, m, &mut region);
+        (region, right)
+    }
 
-    fn split_off(&self, m: usize, Tracked(region): Tracked<&mut Region<Self::T>>) -> (res: Tracked<Region<Self::T>>)
-        where Self: Sized,
+    pub proof fn split_off<T>(aself: &Array<T>, tracked m: usize, tracked region: &mut Region<T>) -> (tracked res: Region<T>)
+    where
         requires
             old(region).lo() <= m@ < old(region).hi(),
-            self.wf(*old(region)),
+            wf(*aself,*old(region)),
         ensures
-            self.wf(*region),
+            wf(*aself,*region),
             region.lo() == old(region).lo(),
             region.hi() == m,
-            self.wf(res@),
-            res@.lo() == m,
-            res@.hi() == old(region).hi();
-
-    fn merge(&self, Tracked(left): Tracked<&mut Region<Self::T>>, Tracked(right): Tracked<Region<Self::T>>)
-        where Self: Sized,
-        requires
-            self.wf(*old(left)),
-            self.wf(right),
-            old(left).hi() == right.lo(),
-        ensures
-            self.wf(*left),
-            left.lo() == old(left).lo(),
-            left.hi() == right.hi();
-
-    fn new(data: Vec<Self::T>) -> (res: (Self, Tracked<Region<Self::T>>))
-        where Self: std::marker::Sized,
-        ensures
-            data.len() == res.0.len(),
-            res.0.wf(res.1@),
-            res.1@.lo() == 0,
-            res.1@.hi() == res.0.len();
-
-    fn replace(&self, i: usize, x: Self::T, Tracked(perms): Tracked<&mut Region<Self::T>>) -> (res: Self::T)
-        where Self: Sized,
-        requires
-            self.wf((*old(perms))),
-            old(perms).lo() <= i < old(perms).hi(),
-        ensures
-            self.wf(*perms),
-            perms.lo() == old(perms).lo(),
-            perms.hi() == old(perms).hi();
-
-    fn read<'a>(&'a self, i: usize, Tracked(perms): Tracked<&'a Region<Self::T>>) -> (res: &'a Self::T)
-        where Self: Sized,
-        requires
-            self.wf(*perms),
-            perms.lo() <= i < perms.hi();
-
-    fn clone_to_vec(&self, Tracked(perms): Tracked<&Region<Self::T>>) -> Vec<Self::T>
-        where
-            Self: Sized,
-            Self::T: Clone,
-        requires
-            self.wf(*perms),
-            perms.lo() == 0,
-            perms.hi() == self.len();
-}
-
-impl<T> RegionArray for Array<T> {
-    type T = T;
-
-    closed spec fn wf(self, region: Region<T>) -> bool {
-        region.lo <= region.hi <= self.len() && self.wf(region.perms) && forall |i: usize| region.lo <= i < region.hi ==> self.available(i, region.perms)
-    }
-
-    fn split_at(&self, m: usize, mut region: Tracked<Region<T>>) -> (res: (Tracked<Region<T>>, Tracked<Region<T>>)) {
-        let Tracked(mut region) = region;
-        let right = self.split_off(m, Tracked(&mut region));
-        (Tracked(region), right)
-    }
-
-    fn split_off(&self, m: usize, Tracked(region): Tracked<&mut Region<T>>) -> (res: Tracked<Region<T>>) {
+            wf(*aself,res),
+            res.lo() == m,
+            res.hi() == old(region).hi()
+    {
         let ghost old_perms = region.perms;
         let ghost right_keys = Set::<usize>::new(|i: usize| m <= i < region.hi());
-        assert(forall |i: usize| region.lo() <= i < region.hi() ==> self.available(i, region.perms) ==> region.perms.contains_key(i));
+        assert(forall |i: usize| region.lo() <= i < region.hi() ==> aself.available(i, region.perms) ==> region.perms.contains_key(i));
 
         let tracked right_perms = region.perms.tracked_remove_keys(right_keys);
         let tracked right = Region {
@@ -159,38 +106,49 @@ impl<T> RegionArray for Array<T> {
             hi: region.hi,
             perms: right_perms,
         };
-        proof {
-            region.hi = m;
+        region.hi = m;
+        assert(aself.wf(region.perms)) by {
+            aself.submap_wf(old_perms, region.perms);
         }
-        assert(self.wf(region.perms)) by {
-            self.submap_wf(old_perms, region.perms);
+        assert(aself.wf(right_perms)) by {
+            aself.submap_wf(old_perms, right_perms);
         }
-        assert(self.wf(right_perms)) by {
-            self.submap_wf(old_perms, right_perms);
-        }
-        Tracked(right)
+        right
     }
 
-    fn merge(&self, Tracked(left): Tracked<&mut Region<Self::T>>, Tracked(right): Tracked<Region<Self::T>>) {
-        assert(forall |i: usize| left.lo <= i < left.hi ==> self.available(i, left.perms) ==> left.perms.contains_key(i));
-        assert(forall |i: usize| right.lo <= i < right.hi ==> self.available(i, right.perms) ==> right.perms.contains_key(i));
-        proof {
-            let tracked right_perms = right.perms;
-            left.perms.tracked_union_prefer_right(right_perms);
-        }
-        proof {
-            left.hi = right.hi;
-        }
-        assert(self.wf(left.perms)) by {
-            self.union_wf(old(left).perms, right.perms);
+    pub proof fn merge<T>(aself: &Array<T>, tracked left: &mut Region<T>, tracked right: Region<T>)
+        where
+        requires
+            wf(*aself,*old(left)),
+            wf(*aself,right),
+            old(left).hi() == right.lo(),
+        ensures
+            wf(*aself,*left),
+            left.lo() == old(left).lo(),
+            left.hi() == right.hi()
+    {
+        assert(forall |i: usize| left.lo <= i < left.hi ==> aself.available(i, left.perms) ==> left.perms.contains_key(i));
+        assert(forall |i: usize| right.lo <= i < right.hi ==> aself.available(i, right.perms) ==> right.perms.contains_key(i));
+        let tracked right_perms = right.perms;
+        left.perms.tracked_union_prefer_right(right_perms);
+        left.hi = right.hi;
+        assert(aself.wf(left.perms)) by {
+            aself.union_wf(old(left).perms, right.perms);
         }
     }
 
-    open spec fn len(&self) -> usize {
-        Array::len(self)
+    pub open spec fn len<T>(aself: &Array<T>) -> usize {
+        Array::len(aself)
     }
 
-    fn new(data: Vec<T>) -> (res: (Self, Tracked<Region<T>>)) {
+    pub fn new<T>(data: Vec<T>) -> (res: (Array<T>, Tracked<Region<T>>))
+    where
+        ensures
+            data.len() == res.0.len(),
+            wf(res.0, res.1@),
+            res.1@.lo() == 0,
+            res.1@.hi() == res.0.len()
+    {
         let (arr, Tracked(perms)) = Array::new(data);
         assert(arr.wf(perms));
         let length = arr.length();
@@ -202,18 +160,37 @@ impl<T> RegionArray for Array<T> {
         (arr, Tracked(region))
     }
 
-    fn replace(&self, i: usize, x: T, Tracked(perms): Tracked<&mut Region<Self::T>>) -> (res: T) {
-        <Array<T>>::replace(self, i, x, Tracked(&mut perms.perms))
-    }
-
-    fn read<'a>(&'a self, i: usize, Tracked(perms): Tracked<&'a Region<Self::T>>) -> (res: &'a Self::T) {
-        <Array<T>>::read(self, i, Tracked(&perms.perms))
-    }
-
-    fn clone_to_vec(&self, Tracked(perms): Tracked<&Region<Self::T>>) -> Vec<Self::T>
-        where T: Clone
+    pub fn replace<T>(aself: &Array<T>, i: usize, x: T, Tracked(perms): Tracked<&mut Region<T>>) -> (res: T)
+    where
+        requires
+            wf(*aself,(*old(perms))),
+            old(perms).lo() <= i < old(perms).hi(),
+        ensures
+            wf(*aself,*perms),
+            perms.lo() == old(perms).lo(),
+            perms.hi() == old(perms).hi()
     {
-        <Array<T>>::clone_to_vec(self, Tracked(&perms.perms))
+        <Array<T>>::replace(aself, i, x, Tracked(&mut perms.perms))
+    }
+
+    pub fn read<'a, T>(aself: &'a Array<T>, i: usize, Tracked(perms): Tracked<&'a Region<T>>) -> (res: &'a T)
+    where
+        requires
+            wf(*aself,*perms),
+            perms.lo() <= i < perms.hi()
+    {
+        <Array<T>>::read(aself, i, Tracked(&perms.perms))
+    }
+
+    pub fn clone_to_vec<T>(aself: &Array<T>, Tracked(perms): Tracked<&Region<T>>) -> Vec<T>
+        where T: Clone,
+            T: Clone,
+        requires
+            wf(*aself,*perms),
+            perms.lo() == 0,
+            perms.hi() == self::len(aself)
+    {
+        <Array<T>>::clone_to_vec(aself, Tracked(&perms.perms))
     }
 }
 
@@ -234,13 +211,13 @@ pub mod mergesort {
             perms.lo() <= left_lo <= left_hi <= perms.hi() <= array.len(),
             perms.lo() <= right_lo <= right_hi <= perms.hi() <= array.len(),
             left_hi - left_lo + right_hi - right_lo <= usize::MAX,
-            <Array<i32> as RegionArray>::wf(*array, (*perms)),
-            <Array<i32> as RegionArray>::wf(*out_array, *old(out_perms)),
+            region_array::wf(*array, (*perms)),
+            region_array::wf(*out_array, *old(out_perms)),
             old(out_perms).lo() <= out_lo <= out_lo + (left_hi - left_lo + right_hi - right_lo) <= old(out_perms).hi() <= out_array.len(),
             out_lo + right_hi - right_lo + left_hi - left_lo <= old(out_perms).hi(),
         ensures
             // res.len() == left_hi - left_lo + right_hi - right_lo,
-            <Array<i32> as RegionArray>::wf(*out_array, *out_perms),
+            region_array::wf(*out_array, *out_perms),
             old(out_perms).lo() == out_perms.lo(),
             old(out_perms).hi() == out_perms.hi(),
     {
@@ -249,10 +226,10 @@ pub mod mergesort {
         let ghost old_right_lo = right_lo;
         while left_lo < left_hi && right_lo < right_hi
             invariant
-                <Array<i32> as RegionArray>::wf(*array, (*perms)),
+                region_array::wf(*array, (*perms)),
                 perms.lo() <= left_lo <= left_hi <= perms.hi() <= array.len(),
                 perms.lo() <= right_lo <= right_hi <= perms.hi() <= array.len(),
-                <Array<i32> as RegionArray>::wf(*out_array, *out_perms),
+                region_array::wf(*out_array, *out_perms),
                 out_perms.lo() <= out_lo <= old_out_lo + (left_hi - old_left_lo + right_hi - old_right_lo) <= out_perms.hi() <= out_array.len(),
                 out_lo == old_out_lo + (left_lo - old_left_lo) + (right_lo - old_right_lo),
                 old_out_lo + right_hi - old_right_lo + left_hi - old_left_lo <= old(out_perms).hi(),
@@ -260,25 +237,25 @@ pub mod mergesort {
                 old(out_perms).hi() == out_perms.hi(),
         {
             let element: i32;
-            if <Array<i32> as RegionArray>::read(array, left_lo, Tracked(perms)) < <Array<i32> as RegionArray>::read(array, right_lo, Tracked(perms)) {
-                element = *<Array<i32> as RegionArray>::read(array, left_lo, Tracked(perms));
+            if region_array::read(array, left_lo, Tracked(perms)) < region_array::read(array, right_lo, Tracked(perms)) {
+                element = *region_array::read(array, left_lo, Tracked(perms));
                 left_lo += 1;
             } else {
-                element = *<Array<i32> as RegionArray>::read(array, right_lo, Tracked(perms));
+                element = *region_array::read(array, right_lo, Tracked(perms));
                 right_lo += 1;
             }
-            <Array<i32> as RegionArray>::replace(out_array, out_lo, element, Tracked(out_perms));
+            region_array::replace(out_array, out_lo, element, Tracked(out_perms));
             out_lo += 1;
         }
 
         if left_lo < left_hi {
             while left_lo < left_hi
                 invariant
-                    <Array<i32> as RegionArray>::wf(*array, (*perms)),
+                    region_array::wf(*array, (*perms)),
                     left_hi - left_lo + right_hi - right_lo + out_lo - old_out_lo == left_hi - old_left_lo + right_hi - old_right_lo,
                     perms.lo() <= left_lo <= left_hi <= perms.hi() <= array.len(),
                     perms.lo() <= right_lo <= right_hi,
-                    <Array<i32> as RegionArray>::wf(*out_array, *out_perms),
+                    region_array::wf(*out_array, *out_perms),
                     out_perms.lo() <= out_lo <= out_perms.hi() <= out_array.len(),
                     out_lo == old_out_lo + (left_lo - old_left_lo) + (right_lo - old_right_lo),
                     out_lo <= old_out_lo + left_lo - old_left_lo + right_hi - old_right_lo,
@@ -286,19 +263,19 @@ pub mod mergesort {
                     old(out_perms).lo() == out_perms.lo(),
                     old(out_perms).hi() == out_perms.hi(),
             {
-                let e = *<Array<i32> as RegionArray>::read(array, left_lo, Tracked(perms));
-                <Array<i32> as RegionArray>::replace(out_array, out_lo, e, Tracked(out_perms));
+                let e = *region_array::read(array, left_lo, Tracked(perms));
+                region_array::replace(out_array, out_lo, e, Tracked(out_perms));
                 left_lo += 1;
                 out_lo += 1;
             }
         } else if right_lo < right_hi {
             while right_lo < right_hi
                 invariant
-                    <Array<i32> as RegionArray>::wf(*array, (*perms)),
+                    region_array::wf(*array, (*perms)),
                     left_hi - left_lo + right_hi - right_lo + out_lo - old_out_lo == left_hi - old_left_lo + right_hi - old_right_lo,
                     perms.lo() <= right_lo <= right_hi <= perms.hi() <= array.len(),
                     perms.lo() <= left_lo <= left_hi,
-                    <Array<i32> as RegionArray>::wf(*out_array, *out_perms),
+                    region_array::wf(*out_array, *out_perms),
                     out_perms.lo() <= out_lo <= out_perms.hi() <= out_array.len(),
                     out_lo == old_out_lo + (left_lo - old_left_lo) + (right_lo - old_right_lo),
                     out_lo <= old_out_lo + left_lo - old_left_lo + right_hi - old_right_lo,
@@ -306,8 +283,8 @@ pub mod mergesort {
                     old(out_perms).lo() == out_perms.lo(),
                     old(out_perms).hi() == out_perms.hi(),
             {
-                let e = *<Array<i32> as RegionArray>::read(array, right_lo, Tracked(perms));
-                <Array<i32> as RegionArray>::replace(out_array, out_lo, e, Tracked(out_perms));
+                let e = *region_array::read(array, right_lo, Tracked(perms));
+                region_array::replace(out_array, out_lo, e, Tracked(out_perms));
                 right_lo += 1;
                 out_lo += 1;
             }
@@ -321,14 +298,14 @@ pub mod mergesort {
         requires
             old(arr).perms@.lo() == 0,
             old(arr).perms@.hi() == old(arr).array.len(),
-            <Array<i32> as RegionArray>::wf(*old(arr).array, (old(arr).perms@)),
+            region_array::wf(*old(arr).array, (old(arr).perms@)),
             old(arr).array.len() == out_arr.len(),
         ensures
-            <Array<i32> as RegionArray>::wf(*arr.array, (arr.perms@)),
+            region_array::wf(*arr.array, (arr.perms@)),
             arr.perms@.lo() == old(arr).perms@.lo(),
             arr.perms@.hi() == old(arr).perms@.hi(),
     {
-        let (out_arr, mut out_perms) = <Array<i32> as RegionArray>::new(out_arr);
+        let (out_arr, mut out_perms) = region_array::new(out_arr);
         merge_sort(
             &arr.array,
             0,
@@ -350,14 +327,14 @@ pub mod mergesort {
     )
         requires
             old(perms).lo() <= lo <= hi <= old(perms).hi() <= arr.len(),
-            <Array<i32> as RegionArray>::wf(*arr, (*old(perms))),
+            region_array::wf(*arr, (*old(perms))),
             old(out_perms).lo() <= out_lo <= out_lo + hi - lo <= old(out_perms).hi() <= out_arr.len(),
-            <Array<i32> as RegionArray>::wf(*out_arr, (*old(out_perms))),
+            region_array::wf(*out_arr, (*old(out_perms))),
         ensures
-            <Array<i32> as RegionArray>::wf(*arr, (*perms)),
+            region_array::wf(*arr, (*perms)),
             perms.lo() == old(perms).lo(),
             perms.hi() == old(perms).hi(),
-            <Array<i32> as RegionArray>::wf(*out_arr, *out_perms),
+            region_array::wf(*out_arr, *out_perms),
             out_perms.lo() == old(out_perms).lo(),
             out_perms.hi() == old(out_perms).hi(),
     {
@@ -379,8 +356,8 @@ pub mod mergesort {
                 perms.lo() == old(perms).lo(),
                 perms.hi() == old(perms).hi(),
                 perms.lo() <= lo <= hi <= perms.hi() <= arr.len(),
-                <Array<i32> as RegionArray>::wf(*arr, (*perms)),
-                <Array<i32> as RegionArray>::wf(*out_arr, *out_perms),
+                region_array::wf(*arr, (*perms)),
+                region_array::wf(*out_arr, *out_perms),
                 out_perms.lo() == old(out_perms).lo(),
                 out_perms.hi() == old(out_perms).hi(),
                 out_perms.lo() <= out_lo <= out_perms.hi() <= out_arr.len(),
@@ -388,8 +365,8 @@ pub mod mergesort {
                 out_lo - old_out_lo == lo - old_lo,
         {
             let ghost perms_prev = *perms;
-            let e = *<Array<i32> as RegionArray>::read(out_arr, out_lo, Tracked(out_perms));
-            <Array<i32> as RegionArray>::replace(arr, lo, e, Tracked(perms));
+            let e = *region_array::read(out_arr, out_lo, Tracked(out_perms));
+            region_array::replace(arr, lo, e, Tracked(perms));
             out_lo += 1;
             lo += 1;
         }
@@ -403,14 +380,14 @@ pub mod mergesort {
         requires
             old(arr).perms@.lo() == 0,
             old(arr).perms@.hi() == old(arr).array.len(),
-            <Array<i32> as RegionArray>::wf(*old(arr).array, (old(arr).perms@)),
+            region_array::wf(*old(arr).array, (old(arr).perms@)),
             old(arr).array.len() == out_arr.len(),
         ensures
-            ret.is_ok() ==> <Array<i32> as RegionArray>::wf(*arr.array, (arr.perms@)),
+            ret.is_ok() ==> region_array::wf(*arr.array, (arr.perms@)),
             ret.is_ok() ==> arr.perms@.lo() == old(arr).perms@.lo(),
             ret.is_ok() ==> arr.perms@.hi() == old(arr).perms@.hi(),
     {
-        let (out_arr, mut out_perms) = <Array<i32> as RegionArray>::new(out_arr);
+        let (out_arr, mut out_perms) = region_array::new(out_arr);
         merge_sort_parallel(
             Arc::clone(&arr.array),
             0,
@@ -434,13 +411,13 @@ pub mod mergesort {
     ) -> (ret: Result<(), &'static str>)
         requires
             old(perms).lo() <= lo <= hi <= old(perms).hi() <= arr.len(),
-            <Array<i32> as RegionArray>::wf(*arr, (*old(perms))),
+            region_array::wf(*arr, (*old(perms))),
             old(out_perms).lo() <= out_lo <= out_lo + hi - lo <= old(out_perms).hi() <= out_arr.len(),
-            <Array<i32> as RegionArray>::wf(*out_arr, *old(out_perms)),
+            region_array::wf(*out_arr, *old(out_perms)),
         ensures
-            ret.is_ok() ==> <Array<i32> as RegionArray>::wf(*arr, (*perms)),
+            ret.is_ok() ==> region_array::wf(*arr, (*perms)),
             ret.is_ok() ==> old(perms).lo() == perms.lo() && old(perms).hi() == perms.hi(),
-            ret.is_ok() ==> <Array<i32> as RegionArray>::wf(*out_arr, *out_perms),
+            ret.is_ok() ==> region_array::wf(*out_arr, *out_perms),
             ret.is_ok() ==> old(out_perms).lo() == out_perms.lo() && old(out_perms).hi() == out_perms.hi(),
     {
         let ghost old_perms = *old(perms);
@@ -458,11 +435,11 @@ pub mod mergesort {
             return Ok(());
         }
 
-        let Tracked(right_perms) = (&*arr).split_off(mid, Tracked(perms));
-        let Tracked(left_perms) = (&*arr).split_off(lo, Tracked(perms));
+        let tracked right_perms = region_array::split_off(&*arr, mid, perms);
+        let tracked left_perms = region_array::split_off(&*arr, lo, perms);
 
-        let Tracked(out_right_perms) = (&*out_arr).split_off(out_mid, Tracked(out_perms));
-        let Tracked(out_left_perms) = (&*out_arr).split_off(out_lo, Tracked(out_perms));
+        let tracked out_right_perms = region_array::split_off(&*out_arr, out_mid, out_perms);
+        let tracked out_left_perms = region_array::split_off(&*out_arr, out_lo, out_perms);
 
         let arr_r1 = Arc::clone(&arr);
         let arr_r2 = Arc::clone(&arr);
@@ -472,8 +449,8 @@ pub mod mergesort {
 
         let left_perms = vstd::thread::spawn(move || -> (ret: Result<(Tracked<Region<i32>>, Tracked<Region<i32>>), ()>)
             ensures
-                ret.is_ok() ==> <Array<i32> as RegionArray>::wf(*arr, ret.unwrap().0@) && ret.unwrap().0@.lo() == lo && ret.unwrap().0@.hi() == mid,
-                ret.is_ok() ==> <Array<i32> as RegionArray>::wf(*out_arr,ret.unwrap().1@) && ret.unwrap().1@.lo() == out_lo && ret.unwrap().1@.hi() == out_mid,
+                ret.is_ok() ==> region_array::wf(*arr, ret.unwrap().0@) && ret.unwrap().0@.lo() == lo && ret.unwrap().0@.hi() == mid,
+                ret.is_ok() ==> region_array::wf(*out_arr,ret.unwrap().1@) && ret.unwrap().1@.lo() == out_lo && ret.unwrap().1@.hi() == out_mid,
             {
                 let tracked mut left_perms = left_perms;
                 let tracked mut out_left_perms = out_left_perms;
@@ -490,8 +467,8 @@ pub mod mergesort {
 
         let right_perms = vstd::thread::spawn(move || -> (ret: Result<(Tracked<Region<i32>>, Tracked<Region<i32>>), ()>)
             ensures
-                    ret.is_ok() ==> <Array<i32> as RegionArray>::wf(*arr, ret.unwrap().0@) && ret.unwrap().0@.lo() == mid && ret.unwrap().0@.hi() == old_perms.hi(),
-                    ret.is_ok() ==> <Array<i32> as RegionArray>::wf(*out_arr, ret.unwrap().1@) && ret.unwrap().1@.lo() == out_mid && ret.unwrap().1@.hi() == old_out_perms.hi(),
+                    ret.is_ok() ==> region_array::wf(*arr, ret.unwrap().0@) && ret.unwrap().0@.lo() == mid && ret.unwrap().0@.hi() == old_perms.hi(),
+                    ret.is_ok() ==> region_array::wf(*out_arr, ret.unwrap().1@) && ret.unwrap().1@.lo() == out_mid && ret.unwrap().1@.hi() == old_out_perms.hi(),
             {
                 let tracked mut right_perms = right_perms;
                 let tracked mut out_right_perms = out_right_perms;
@@ -513,10 +490,13 @@ pub mod mergesort {
                 return Result::Err("error while joining threads");
             }
         };
-        (&*arr).merge(Tracked(&mut left_perms), Tracked(right_perms));
-        (&*arr).merge(Tracked(perms), Tracked(left_perms));
-        (&*out_arr).merge(Tracked(&mut out_left_perms), Tracked(out_right_perms));
-        (&*out_arr).merge(Tracked(out_perms), Tracked(out_left_perms));
+
+        proof {
+            region_array::merge(&*arr, &mut left_perms, right_perms);
+            region_array::merge(&*arr, perms, left_perms);
+            region_array::merge(&*out_arr, &mut out_left_perms, out_right_perms);
+            region_array::merge(&*out_arr, out_perms, out_left_perms);
+        }
 
         merge(&arr, Tracked(perms), lo, mid, mid, hi, &out_arr, Tracked(out_perms), out_lo);
         while lo < hi
@@ -524,16 +504,16 @@ pub mod mergesort {
                 perms.lo() == old_perms.lo(),
                 perms.hi() == old_perms.hi(),
                 perms.lo() <= lo <= hi <= perms.hi() <= arr.len(),
-                <Array<i32> as RegionArray>::wf(*arr, *perms),
-                <Array<i32> as RegionArray>::wf(*out_arr, *out_perms),
+                region_array::wf(*arr, *perms),
+                region_array::wf(*out_arr, *out_perms),
                 out_perms.lo() == old(out_perms).lo(),
                 out_perms.hi() == old(out_perms).hi(),
                 out_perms.lo() <= out_lo <= out_perms.hi() <= out_arr.len(),
                 out_lo <= old_out_lo + hi - old_lo <= old(out_perms).hi(),
                 out_lo - old_out_lo == lo - old_lo,
         {
-            let e = *<Array<i32> as RegionArray>::read(&*out_arr, out_lo, Tracked(out_perms));
-            <Array<i32> as RegionArray>::replace(&*arr, lo, e, Tracked(perms));
+            let e = *region_array::read(&*out_arr, out_lo, Tracked(out_perms));
+            region_array::replace(&*arr, lo, e, Tracked(perms));
             out_lo += 1;
             lo += 1;
         }
@@ -542,13 +522,13 @@ pub mod mergesort {
 
     #[test]
     fn test_par_array() {
-        let (arr, Tracked(mut perms)) = <Array<i32> as RegionArray>::new(vec![5, 4, 3, 2, 1]);
+        let (arr, Tracked(mut perms)) = region_array::new(vec![5, 4, 3, 2, 1]);
         let len = arr.length();
         let arr = Arc::new(arr);
-        let (out_arr, Tracked(mut out_perms)) = <Array<i32> as RegionArray>::new(vec![0, 0, 0, 0, 0]);
+        let (out_arr, Tracked(mut out_perms)) = region_array::new(vec![0, 0, 0, 0, 0]);
         let out_arr = Arc::new(out_arr);
         merge_sort_parallel(Arc::clone(&arr), 0, len, Tracked(&mut perms), Arc::clone(&out_arr), 0, Tracked(&mut out_perms), 2).unwrap();
-        let arr = <Array<i32> as RegionArray>::clone_to_vec(&arr, Tracked(&perms));
+        let arr = region_array::clone_to_vec(&arr, Tracked(&perms));
         assert_eq!(arr, vec![1, 2, 3, 4, 5]);
     }
 }
