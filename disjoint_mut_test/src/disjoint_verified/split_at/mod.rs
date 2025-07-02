@@ -66,23 +66,6 @@ pub mod region_array {
         region.lo <= region.hi <= aself.len() && aself.wf(region.perms) && forall |i: usize| region.lo <= i < region.hi ==> aself.available(i, region.perms)
     }
 
-    pub proof fn split_at<T>(aself: &Array<T>, tracked m: usize, tracked mut region: Region<T>) -> (tracked res: (Region<T>, Region<T>))
-        where
-            requires
-                region.lo() <= m@ < region.hi(),
-                wf(*aself, region),
-            ensures
-                wf(*aself, res.0),
-                res.0.lo() == region.lo(),
-                res.0.hi() == m,
-                wf(*aself, res.1),
-                res.1.lo() == m,
-                res.1.hi() == region.hi()
-    {
-        let tracked right = split_off(aself, m, &mut region);
-        (region, right)
-    }
-
     pub proof fn split_off<T>(aself: &Array<T>, tracked m: usize, tracked region: &mut Region<T>) -> (tracked res: Region<T>)
     where
         requires
@@ -216,7 +199,6 @@ pub mod mergesort {
             old(out_perms).lo() <= out_lo <= out_lo + (left_hi - left_lo + right_hi - right_lo) <= old(out_perms).hi() <= out_array.len(),
             out_lo + right_hi - right_lo + left_hi - left_lo <= old(out_perms).hi(),
         ensures
-            // res.len() == left_hi - left_lo + right_hi - right_lo,
             region_array::wf(*out_array, *out_perms),
             old(out_perms).lo() == out_perms.lo(),
             old(out_perms).hi() == out_perms.hi(),
@@ -232,7 +214,6 @@ pub mod mergesort {
                 region_array::wf(*out_array, *out_perms),
                 out_perms.lo() <= out_lo <= old_out_lo + (left_hi - old_left_lo + right_hi - old_right_lo) <= out_perms.hi() <= out_array.len(),
                 out_lo == old_out_lo + (left_lo - old_left_lo) + (right_lo - old_right_lo),
-                old_out_lo + right_hi - old_right_lo + left_hi - old_left_lo <= old(out_perms).hi(),
                 old(out_perms).lo() == out_perms.lo(),
                 old(out_perms).hi() == out_perms.hi(),
         {
@@ -257,8 +238,6 @@ pub mod mergesort {
                     perms.lo() <= right_lo <= right_hi,
                     region_array::wf(*out_array, *out_perms),
                     out_perms.lo() <= out_lo <= out_perms.hi() <= out_array.len(),
-                    out_lo == old_out_lo + (left_lo - old_left_lo) + (right_lo - old_right_lo),
-                    out_lo <= old_out_lo + left_lo - old_left_lo + right_hi - old_right_lo,
                     old_out_lo + right_hi - old_right_lo + left_hi - old_left_lo <= old(out_perms).hi(),
                     old(out_perms).lo() == out_perms.lo(),
                     old(out_perms).hi() == out_perms.hi(),
@@ -277,8 +256,6 @@ pub mod mergesort {
                     perms.lo() <= left_lo <= left_hi,
                     region_array::wf(*out_array, *out_perms),
                     out_perms.lo() <= out_lo <= out_perms.hi() <= out_array.len(),
-                    out_lo == old_out_lo + (left_lo - old_left_lo) + (right_lo - old_right_lo),
-                    out_lo <= old_out_lo + left_lo - old_left_lo + right_hi - old_right_lo,
                     old_out_lo + right_hi - old_right_lo + left_hi - old_left_lo <= old(out_perms).hi(),
                     old(out_perms).lo() == out_perms.lo(),
                     old(out_perms).hi() == out_perms.hi(),
