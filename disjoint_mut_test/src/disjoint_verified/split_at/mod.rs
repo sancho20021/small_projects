@@ -442,26 +442,29 @@ pub mod mergesort {
             }
         );
 
-        let right_perms = vstd::thread::spawn(move || -> (ret: Result<(Tracked<Region<i32>>, Tracked<Region<i32>>), ()>)
-            ensures
-                    ret.is_ok() ==> region_array::wf(*arr, ret.unwrap().0@) && ret.unwrap().0@.lo() == mid && ret.unwrap().0@.hi() == old_perms.hi(),
-                    ret.is_ok() ==> region_array::wf(*out_arr, ret.unwrap().1@) && ret.unwrap().1@.lo() == out_mid && ret.unwrap().1@.hi() == old_out_perms.hi(),
-            {
-                let tracked mut right_perms = right_perms;
-                let tracked mut out_right_perms = out_right_perms;
-                match merge_sort_parallel(arr_r2, mid, hi, Tracked(&mut right_perms), out_arr_r2, out_mid, Tracked(&mut out_right_perms), threshold) {
-                    Ok(()) => Ok((Tracked(right_perms), Tracked(out_right_perms))),
-                    Err(_) => Err(()),
-                }
-            }
-        );
+        // let right_perms = vstd::thread::spawn(move || -> (ret: Result<(Tracked<Region<i32>>, Tracked<Region<i32>>), ()>)
+        //     ensures
+        //             ret.is_ok() ==> region_array::wf(*arr, ret.unwrap().0@) && ret.unwrap().0@.lo() == mid && ret.unwrap().0@.hi() == old_perms.hi(),
+        //             ret.is_ok() ==> region_array::wf(*out_arr, ret.unwrap().1@) && ret.unwrap().1@.lo() == out_mid && ret.unwrap().1@.hi() == old_out_perms.hi(),
+        //     {
+        //         let tracked mut right_perms = right_perms;
+        //         let tracked mut out_right_perms = out_right_perms;
+        //         match merge_sort_parallel(arr_r2, mid, hi, Tracked(&mut right_perms), out_arr_r2, out_mid, Tracked(&mut out_right_perms), threshold) {
+        //             Ok(()) => Ok((Tracked(right_perms), Tracked(out_right_perms))),
+        //             Err(_) => Err(()),
+        //         }
+        //     }
+        // );
+        match merge_sort_parallel(arr_r2, mid, hi, Tracked(&mut right_perms), out_arr_r2, out_mid, Tracked(&mut out_right_perms), threshold) {
+            Ok(()) => {},
+            Err(_) => {return Result::Err("error while joining threads");},
+        };
 
         let left_perms = left_perms.join();
-        let right_perms = right_perms.join();
 
-        let ((Tracked(mut left_perms), Tracked(mut out_left_perms)), (Tracked(mut right_perms), Tracked(mut out_right_perms))) = match (left_perms, right_perms) {
-            (Result::Ok(Ok(l)), Result::Ok(Ok(r))) => {
-                (l, r)
+        let (Tracked(mut left_perms), Tracked(mut out_left_perms)) = match left_perms {
+            Result::Ok(Ok(l)) => {
+                l
             },
             _ => {
                 return Result::Err("error while joining threads");

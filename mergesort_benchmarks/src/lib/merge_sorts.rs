@@ -16,7 +16,7 @@ pub fn merge_sort<T: Ord + Copy>(arr: &mut [T], out_arr: &mut [T]) {
     }
 }
 
-fn merge<T: Ord + Copy>(left: &[T], right: &[T], out: &mut [T]) {
+pub fn merge<T: Ord + Copy>(left: &[T], right: &[T], out: &mut [T]) {
     let mut left_index = 0;
     let mut right_index = 0;
     let mut out_index = 0;
