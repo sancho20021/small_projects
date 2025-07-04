@@ -121,17 +121,54 @@ pub fn merge_sort_parallel<T: Ord + Send + Copy>(
         let left_handle = s.spawn(|| {
             merge_sort_parallel(&mut *left, out_left, threshold);
         });
-        let right_handle = s.spawn(|| {
-            merge_sort_parallel(&mut *right, out_right, threshold);
-        });
+        merge_sort_parallel(&mut *right, out_right, threshold);
         left_handle.join().unwrap();
-        right_handle.join().unwrap();
     });
 
     merge(left, right, out_arr);
     let mut i = 0;
     while i < arr.len() {
         arr[i] = out_arr[i];
+        i += 1;
+    }
+}
+
+pub fn merge_sort_parallel_unchecked<T: Ord + Send + Copy>(
+    arr: &mut [T],
+    out_arr: &mut [T],
+    threshold: usize,
+) {
+    let mid = arr.len() / 2;
+    if mid == 0 {
+        return;
+    }
+
+    if arr.len() <= threshold {
+        merge_sort_unchecked(arr, out_arr);
+        return;
+    }
+
+    let ((left, right), (out_left, out_right)) = unsafe {
+        (
+            arr.split_at_mut_unchecked(mid),
+            out_arr.split_at_mut_unchecked(mid),
+        )
+    };
+
+    std::thread::scope(|s| {
+        let left_handle = s.spawn(|| {
+            merge_sort_parallel_unchecked(&mut *left, out_left, threshold);
+        });
+        merge_sort_parallel_unchecked(&mut *right, out_right, threshold);
+        left_handle.join().unwrap();
+    });
+
+    merge_unchecked(left, right, out_arr);
+    let mut i = 0;
+    while i < arr.len() {
+        unsafe {
+            *arr.get_unchecked_mut(i) = *out_arr.get_unchecked(i);
+        }
         i += 1;
     }
 }
