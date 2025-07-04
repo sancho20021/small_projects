@@ -4,18 +4,18 @@ mod test_debug;
 pub const DEFAULT_THRESHOLD: usize = 2024;
 
 pub fn get_threshold_with_cores(array_len: usize, cores: usize) -> usize {
-    let mut tl = DEFAULT_THRESHOLD - 1;
-    let mut tr = std::cmp::max(DEFAULT_THRESHOLD, array_len);
+    let mut tl = DEFAULT_THRESHOLD;
+    let mut tr = std::cmp::max(DEFAULT_THRESHOLD + 1, array_len);
     while tr - tl > 1 {
         let tm = (tl + tr) / 2;
         let threads_est = get_est_threads_spawned(array_len, tm);
-        if threads_est <= cores {
-            tr = tm;
-        } else {
+        if threads_est >= cores {
             tl = tm;
+        } else {
+            tr = tm;
         }
     }
-    tr
+    tl
 }
 
 pub fn get_threshold(array_len: usize) -> usize {
@@ -76,5 +76,14 @@ mod threshold_tests {
         let t = n - 1;
         let c_est = get_est_threads_spawned(n, t);
         assert_eq!(c_est, 2);
+    }
+
+    #[test]
+    fn test_cpu24() {
+        let n = 100_000_000;
+        let c = 24;
+        let t = get_threshold_with_cores(n, c);
+        let c_est = get_est_threads_spawned(n, t);
+        assert!(c_est >= c);
     }
 }

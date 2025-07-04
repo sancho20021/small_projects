@@ -78,6 +78,7 @@ fn test_big_array() {
     let threadsn = Mutex::new(1);
     let maxthreads = Mutex::new(1);
     let threshold = get_threshold(arr.len());
+    // let threshold = 6_250_000;
     let thread_spawned = Mutex::new(vec![(Instant::now(), 1)]);
     println!("threshold = {threshold}");
     merge_sort_parallel(&mut arr, &mut out_arr, threshold, &threadsn, &maxthreads, &thread_spawned);
