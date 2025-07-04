@@ -407,7 +407,7 @@ pub mod mergesort {
             return Ok(());
         }
 
-        if hi - lo < threshold {
+        if hi - lo <= threshold {
             merge_sort(&*arr, lo, hi, Tracked(perms), &*out_arr, out_lo, Tracked(out_perms));
             return Ok(());
         }

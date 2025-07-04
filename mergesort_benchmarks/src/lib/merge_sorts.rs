@@ -109,7 +109,7 @@ pub fn merge_sort_parallel<T: Ord + Send + Copy>(
         return;
     }
 
-    if arr.len() < threshold {
+    if arr.len() <= threshold {
         merge_sort(arr, out_arr);
         return;
     }
@@ -146,7 +146,7 @@ pub fn merge_sort_threadpool<T: Ord + Send + Copy>(
         return;
     }
 
-    if arr.len() < threshold {
+    if arr.len() <= threshold {
         merge_sort(arr, out_arr);
         return;
     }

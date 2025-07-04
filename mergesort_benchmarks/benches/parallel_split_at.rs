@@ -161,8 +161,8 @@ fn rayon_par_mergesort(c: &mut Criterion) {
     }
 }
 
-static ARRAY_SIZES: [usize; 3] = [
-    /* 50_000,*/ /* 100_000, 500_000, 1_000_000, */ 2_000_000, 4_000_000, 100_000_000,
+static ARRAY_SIZES: [usize; 2] = [
+    /* 50_000,*/ /* 100_000, 500_000, */ /* 1_000_000,*/ 2_000_000, 4_000_000, /* 100_000_000 ,*/
 ];
 
 fn small_config() -> Criterion {
@@ -174,7 +174,7 @@ fn small_config() -> Criterion {
 criterion_group! {
     name = merge_sorts;
     config = small_config();
-    targets = parallel_mergesort, /* seq_mergesort, */ /* threadpool_mergesort,*/ /* array_seq_mergesort, */ array_par_mergesort, /* unchecked_seq_mergesort */
+    targets = parallel_mergesort, seq_mergesort, /* threadpool_mergesort,*/ /* array_seq_mergesort, array_par_mergesort, unchecked_seq_mergesort*/
     // targets = rayon_par_mergesort
     // targets = unchecked_seq_mergesort
 }
