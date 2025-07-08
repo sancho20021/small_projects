@@ -1,6 +1,9 @@
 pub mod mergesort {
     use crate::merge_sorts::{
-        parallel_profiled::{update_stats, MergeTimes, Stats, MERGE_PROFILE_THRESH},
+        parallel_profiled::{
+            merge_mergetimes, update_mergetimes, update_stats, MergeTimes, Stats,
+            MERGE_PROFILE_THRESH,
+        },
         verus_without_ghost::{exec_pcell::Array, region_array, ArrayAbstraction},
     };
 
@@ -19,7 +22,8 @@ pub mod mergesort {
         mut out_lo: usize,
         merge_times: &mut MergeTimes,
     ) {
-        let start = if left_hi - left_lo + right_hi - right_lo > MERGE_PROFILE_THRESH {
+        let len = left_hi - left_lo + right_hi - right_lo;
+        let start = if len > MERGE_PROFILE_THRESH {
             Some(Instant::now())
         } else {
             None
@@ -53,7 +57,7 @@ pub mod mergesort {
             }
         }
         if let Some(start) = start {
-            merge_times.push(start.elapsed());
+            update_mergetimes(merge_times, len, start.elapsed());
         }
     }
     pub fn merge_sort_abstraction(
@@ -140,9 +144,9 @@ pub mod mergesort {
         let arr_r2 = Arc::clone(&arr);
         let out_arr_r1 = Arc::clone(&out_arr);
         let out_arr_r2 = Arc::clone(&out_arr);
-        let mut merge_times_left = vec![];
+        let mut merge_times_left = MergeTimes::new();
         let merge_times_left_r = &mut merge_times_left;
-        let mut merge_times_right = vec![];
+        let mut merge_times_right = MergeTimes::new();
         std::thread::scope(|scope| {
             let left_perms = scope.spawn(move || -> Result<(), ()> {
                 let t = merge_sort_parallel(
@@ -184,8 +188,8 @@ pub mod mergesort {
                 }
             }
         })?;
-        merge_times.extend_from_slice(&merge_times_left);
-        merge_times.extend_from_slice(&merge_times_right);
+        merge_mergetimes(merge_times, merge_times_left);
+        merge_mergetimes(merge_times, merge_times_right);
         merge(&arr, lo, mid, mid, hi, &out_arr, out_lo, merge_times);
         while lo < hi {
             let e = *region_array::read(&*out_arr, out_lo);
@@ -205,7 +209,7 @@ mod tests {
     use crate::{
         get_threshold,
         merge_sorts::{
-            parallel_profiled::Stats,
+            parallel_profiled::{MergeTimes, Stats},
             verus_without_ghost::{exec_pcell::Array, ArrayAbstraction},
             verus_without_ghost_profiled::mergesort::merge_sort_parallel_abstraction,
         },
@@ -218,7 +222,7 @@ mod tests {
 
         let threshold = get_threshold(arr.len());
         let mut arr = ArrayAbstraction::new(arr);
-        let mut state = (Mutex::new(Stats::new()), vec![]);
+        let mut state = (Mutex::new(Stats::new()), MergeTimes::new());
         merge_sort_parallel_abstraction(&mut arr, out_arr, threshold, &state.0, &mut state.1)
             .unwrap();
         let vec = arr.clone_to_vec();

@@ -244,9 +244,11 @@ fn verus_changed5_par_mergesort(c: &mut Criterion) {
     benchmark_parallel_sort::<VerusChanged5>(c, &mut ());
 }
 
+type ProfiledState = (Mutex<Stats>, MergeTimes);
+
 struct ParallelProfiled;
 impl BenchmarkableParallelSort for ParallelProfiled {
-    type ExtraState = (Mutex<Stats>, Vec<Duration>);
+    type ExtraState = ProfiledState;
 
     fn get_name() -> &'static str {
         "parallel profiled"
@@ -268,21 +270,24 @@ impl BenchmarkableParallelSort for ParallelProfiled {
     }
 }
 
-fn format_merge_times(merge_times: &Vec<Duration>) -> Vec<u128> {
-    merge_times.iter().map(|d| d.as_micros()).collect()
+fn format_merge_times(merge_times: &MergeTimes) -> HashMap<usize, Vec<u128>> {
+    merge_times
+        .iter()
+        .map(|(size, d)| (*size, d.iter().map(|d| d.as_micros()).collect()))
+        .collect()
 }
 
 fn par_mergesort_profiled(c: &mut Criterion) {
-    let mut stats = (Mutex::new(Stats::new()), vec![]);
+    let mut stats = ProfiledState::default();
     benchmark_parallel_sort::<ParallelProfiled>(c, &mut stats);
     let mut file = File::create("parallel_stats.txt").unwrap();
     println!("merge_time_len={}", stats.1.len());
-    writeln!(file, "{:#?}", format_merge_times(&stats.1)).unwrap();
+    writeln!(file, "{:?}", format_merge_times(&stats.1)).unwrap();
 }
 
 struct VerusNoGhostProfiled;
 impl BenchmarkableParallelSort for VerusNoGhostProfiled {
-    type ExtraState = (Mutex<Stats>, MergeTimes);
+    type ExtraState = ProfiledState;
 
     fn get_name() -> &'static str {
         "verus no ghost profiled"
@@ -312,12 +317,12 @@ fn print_stats(stats: &Mutex<Stats>) {
 }
 
 fn verus_no_ghost_profiled(c: &mut Criterion) {
-    let mut stats = (Mutex::new(Stats::new()), vec![]);
+    let mut stats = ProfiledState::default();
     benchmark_parallel_sort::<VerusNoGhostProfiled>(c, &mut stats);
 
     let mut file = File::create("verus_no_ghost_stats.txt").unwrap();
     println!("merge_time_len={}", stats.1.len());
-    writeln!(file, "{:#?}", format_merge_times(&stats.1)).unwrap();
+    writeln!(file, "{:?}", format_merge_times(&stats.1)).unwrap();
 }
 
 static ARRAY_SIZES: [usize; 1] = [
@@ -332,9 +337,8 @@ static ARRAY_SIZES: [usize; 1] = [
 ];
 
 fn small_config() -> Criterion {
-    Criterion::default()
-        .sample_size(10)
-        // .measurement_time(Duration::from_secs(15))
+    Criterion::default().sample_size(10)
+    // .measurement_time(Duration::from_secs(15))
 }
 
 criterion_group! {

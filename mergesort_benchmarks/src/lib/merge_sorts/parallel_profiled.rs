@@ -18,14 +18,35 @@ pub fn update_stats(len: usize, dur: Duration, stats: &Mutex<Stats>) {
         .or_insert(vec![dur]);
 }
 
-pub type MergeTimes = Vec<Duration>;
+/// merge time for each size
+pub type MergeTimes = HashMap<usize, Vec<Duration>>;
+
+pub fn merge_mergetimes(times: &mut MergeTimes, new_times: MergeTimes) {
+    for (size, new_times_durs) in new_times.into_iter() {
+        if times.contains_key(&size) {
+            times
+                .get_mut(&size)
+                .unwrap()
+                .extend_from_slice(&new_times_durs);
+        } else {
+            times.insert(size, new_times_durs);
+        }
+    }
+}
+
+pub fn update_mergetimes(times: &mut MergeTimes, size: usize, dur: Duration) {
+    times
+        .entry(size)
+        .and_modify(|v| v.push(dur))
+        .or_insert(vec![dur]);
+}
 
 pub fn merge_sort_parallel<T: Ord + Send + Copy>(
     arr: &mut [T],
     out_arr: &mut [T],
     threshold: usize,
     stats: &Mutex<Stats>,
-    merge_times: &mut Vec<Duration>,
+    merge_times: &mut MergeTimes,
 ) {
     let start = Instant::now();
     let mid = arr.len() / 2;
@@ -43,8 +64,8 @@ pub fn merge_sort_parallel<T: Ord + Send + Copy>(
     let (left, right) = arr.split_at_mut(mid);
     let (out_left, out_right) = out_arr.split_at_mut(mid);
 
-    let mut merge_times_left = vec![];
-    let mut merge_times_right = vec![];
+    let mut merge_times_left = MergeTimes::new();
+    let mut merge_times_right = MergeTimes::new();
     std::thread::scope(|s| {
         let left_handle = s.spawn(|| {
             merge_sort_parallel(
@@ -64,8 +85,8 @@ pub fn merge_sort_parallel<T: Ord + Send + Copy>(
         );
         left_handle.join().unwrap();
     });
-    merge_times.extend_from_slice(&merge_times_left);
-    merge_times.extend_from_slice(&merge_times_right);
+    merge_mergetimes(merge_times, merge_times_left);
+    merge_mergetimes(merge_times, merge_times_right);
 
     merge(left, right, out_arr, merge_times);
     let mut i = 0;
@@ -77,12 +98,7 @@ pub fn merge_sort_parallel<T: Ord + Send + Copy>(
     update_stats(arr.len(), end - start, stats);
 }
 
-pub fn merge<T: Ord + Copy>(
-    left: &[T],
-    right: &[T],
-    out: &mut [T],
-    merge_times: &mut Vec<Duration>,
-) {
+pub fn merge<T: Ord + Copy>(left: &[T], right: &[T], out: &mut [T], merge_times: &mut MergeTimes) {
     let start = if out.len() > MERGE_PROFILE_THRESH {
         Some(Instant::now())
     } else {
@@ -120,15 +136,11 @@ pub fn merge<T: Ord + Copy>(
     }
     if let Some(start) = start {
         let elapsed = start.elapsed();
-        merge_times.push(elapsed);
+        update_mergetimes(merge_times, out.len(), elapsed);
     }
 }
 
-pub fn merge_sort<T: Ord + Copy>(
-    arr: &mut [T],
-    out_arr: &mut [T],
-    merge_times: &mut Vec<Duration>,
-) {
+pub fn merge_sort<T: Ord + Copy>(arr: &mut [T], out_arr: &mut [T], merge_times: &mut MergeTimes) {
     let mid = arr.len() / 2;
     if mid == 0 {
         return;
@@ -149,7 +161,10 @@ pub fn merge_sort<T: Ord + Copy>(
 mod tests {
     use std::{collections::HashMap, sync::Mutex};
 
-    use crate::{get_threshold, merge_sorts::parallel_profiled::merge_sort_parallel};
+    use crate::{
+        get_threshold,
+        merge_sorts::parallel_profiled::{merge_sort_parallel, MergeTimes},
+    };
 
     #[test]
     fn test() {
@@ -158,12 +173,12 @@ mod tests {
         let stats = Mutex::new(HashMap::new());
 
         let threshold = get_threshold(arr.len());
-        let mut merge_times = vec![];
+        let mut merge_times = MergeTimes::new();
         merge_sort_parallel(&mut arr, &mut out_arr, threshold, &stats, &mut merge_times);
 
         let stats = stats.lock().unwrap();
-        println!("{stats:#?}");
+        println!("{stats:?}");
         println!("merge_times len = {}", merge_times.len());
-        println!("{merge_times:#?}")
+        println!("{merge_times:?}")
     }
 }
