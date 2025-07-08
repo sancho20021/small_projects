@@ -6,20 +6,26 @@ use std::{
 
 pub type Stats = HashMap<usize, Vec<Duration>>;
 
-pub fn update_stats(len: usize, dur: Duration, stats: &Mutex<HashMap<usize, Vec<Duration>>>) {
+// if merging smaller arrays, skip time measuring
+pub const MERGE_PROFILE_THRESH: usize = 100_000;
+
+pub fn update_stats(len: usize, dur: Duration, stats: &Mutex<Stats>) {
     let mut stats = stats.lock().unwrap();
-    println!("Parallel call took {dur:?}");
+    // println!("Parallel call took {dur:?}");
     stats
         .entry(len)
         .and_modify(|times| times.push(dur))
         .or_insert(vec![dur]);
 }
 
+pub type MergeTimes = Vec<Duration>;
+
 pub fn merge_sort_parallel<T: Ord + Send + Copy>(
     arr: &mut [T],
     out_arr: &mut [T],
     threshold: usize,
-    stats: &Mutex<HashMap<usize, Vec<Duration>>>,
+    stats: &Mutex<Stats>,
+    merge_times: &mut Vec<Duration>,
 ) {
     let start = Instant::now();
     let mid = arr.len() / 2;
@@ -28,7 +34,7 @@ pub fn merge_sort_parallel<T: Ord + Send + Copy>(
     }
 
     if arr.len() <= threshold {
-        merge_sort(arr, out_arr);
+        merge_sort(arr, out_arr, merge_times);
         let end = Instant::now();
         update_stats(arr.len(), end - start, stats);
         return;
@@ -37,15 +43,31 @@ pub fn merge_sort_parallel<T: Ord + Send + Copy>(
     let (left, right) = arr.split_at_mut(mid);
     let (out_left, out_right) = out_arr.split_at_mut(mid);
 
+    let mut merge_times_left = vec![];
+    let mut merge_times_right = vec![];
     std::thread::scope(|s| {
         let left_handle = s.spawn(|| {
-            merge_sort_parallel(&mut *left, out_left, threshold, stats);
+            merge_sort_parallel(
+                &mut *left,
+                out_left,
+                threshold,
+                stats,
+                &mut merge_times_left,
+            );
         });
-        merge_sort_parallel(&mut *right, out_right, threshold, stats);
+        merge_sort_parallel(
+            &mut *right,
+            out_right,
+            threshold,
+            stats,
+            &mut merge_times_right,
+        );
         left_handle.join().unwrap();
     });
+    merge_times.extend_from_slice(&merge_times_left);
+    merge_times.extend_from_slice(&merge_times_right);
 
-    merge(left, right, out_arr);
+    merge(left, right, out_arr, merge_times);
     let mut i = 0;
     while i < arr.len() {
         arr[i] = out_arr[i];
@@ -55,7 +77,18 @@ pub fn merge_sort_parallel<T: Ord + Send + Copy>(
     update_stats(arr.len(), end - start, stats);
 }
 
-pub fn merge<T: Ord + Copy>(left: &[T], right: &[T], out: &mut [T]) {
+pub fn merge<T: Ord + Copy>(
+    left: &[T],
+    right: &[T],
+    out: &mut [T],
+    merge_times: &mut Vec<Duration>,
+) {
+    let start = if out.len() > MERGE_PROFILE_THRESH {
+        Some(Instant::now())
+    } else {
+        None
+    };
+
     let mut left_index = 0;
     let mut right_index = 0;
     let mut out_index = 0;
@@ -85,18 +118,26 @@ pub fn merge<T: Ord + Copy>(left: &[T], right: &[T], out: &mut [T]) {
             out_index += 1;
         }
     }
+    if let Some(start) = start {
+        let elapsed = start.elapsed();
+        merge_times.push(elapsed);
+    }
 }
 
-pub fn merge_sort<T: Ord + Copy>(arr: &mut [T], out_arr: &mut [T]) {
+pub fn merge_sort<T: Ord + Copy>(
+    arr: &mut [T],
+    out_arr: &mut [T],
+    merge_times: &mut Vec<Duration>,
+) {
     let mid = arr.len() / 2;
     if mid == 0 {
         return;
     }
 
-    merge_sort(&mut arr[0..mid], &mut out_arr[0..mid]);
-    merge_sort(&mut arr[mid..], &mut out_arr[mid..]);
+    merge_sort(&mut arr[0..mid], &mut out_arr[0..mid], merge_times);
+    merge_sort(&mut arr[mid..], &mut out_arr[mid..], merge_times);
 
-    merge(&arr[0..mid], &arr[mid..], out_arr);
+    merge(&arr[0..mid], &arr[mid..], out_arr, merge_times);
 
     let mut i = 0;
     while i < arr.len() {
@@ -117,9 +158,12 @@ mod tests {
         let stats = Mutex::new(HashMap::new());
 
         let threshold = get_threshold(arr.len());
-        merge_sort_parallel(&mut arr, &mut out_arr, threshold, &stats);
+        let mut merge_times = vec![];
+        merge_sort_parallel(&mut arr, &mut out_arr, threshold, &stats, &mut merge_times);
 
         let stats = stats.lock().unwrap();
         println!("{stats:#?}");
+        println!("merge_times len = {}", merge_times.len());
+        println!("{merge_times:#?}")
     }
 }

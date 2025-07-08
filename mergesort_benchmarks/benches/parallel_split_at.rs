@@ -4,16 +4,27 @@ use mergesort_benchmarks::{
     get_threshold,
     merge_sorts::{
         merge_sort, merge_sort_parallel, merge_sort_parallel_unchecked, merge_sort_threadpool,
-        merge_sort_unchecked, parallel_profiled::Stats,
+        merge_sort_unchecked,
+        parallel_profiled::{self, MergeTimes, Stats},
     },
 };
 use rand::RngCore;
 use rayon::slice::ParallelSliceMut;
+use std::io::Write;
 use std::{
+    collections::HashMap,
+    fs::File,
     hint::black_box,
     sync::{Arc, Mutex},
     time::Duration,
 };
+
+pub trait BenchmarkableParallelSort {
+    type ExtraState;
+
+    fn get_name() -> &'static str;
+    fn run(input: Vec<i32>, out: Vec<i32>, threshold: usize, extra_state: &mut Self::ExtraState);
+}
 
 pub fn get_input_array(size: usize) -> Vec<i32> {
     let mut rng = rand::rng();
@@ -26,67 +37,77 @@ pub fn get_input_array(size: usize) -> Vec<i32> {
     v
 }
 
-fn parallel_mergesort(c: &mut Criterion) {
+fn benchmark_parallel_sort<Sort: BenchmarkableParallelSort>(
+    c: &mut Criterion,
+    extra_state: &mut Sort::ExtraState,
+) {
     for size in ARRAY_SIZES {
         let threshold = get_threshold(size);
-        c.bench_with_input(
-            BenchmarkId::new("parallel_mergesort", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let mut arr = black_box(get_input_array(size));
-                    let mut out_arr = black_box(vec![0; arr.len()]);
-                    merge_sort_parallel(
-                        black_box(&mut arr),
-                        black_box(&mut out_arr),
-                        black_box(threshold),
-                    );
-                })
-            },
-        );
+        let input = get_input_array(size);
+        c.bench_with_input(BenchmarkId::new(Sort::get_name(), size), &size, |b, _| {
+            b.iter(|| {
+                let arr = black_box(input.clone());
+                let out_arr = black_box(vec![0; arr.len()]);
+                Sort::run(arr, out_arr, threshold, extra_state);
+            });
+        });
+    }
+}
+
+struct ParallelMergesort;
+impl BenchmarkableParallelSort for ParallelMergesort {
+    type ExtraState = ();
+
+    fn get_name() -> &'static str {
+        "parallel mergesort"
+    }
+
+    fn run(mut input: Vec<i32>, mut out: Vec<i32>, threshold: usize, _: &mut ()) {
+        merge_sort_parallel(&mut input, &mut out, threshold);
+    }
+}
+
+fn parallel_mergesort(c: &mut Criterion) {
+    benchmark_parallel_sort::<ParallelMergesort>(c, &mut ());
+}
+
+struct ParallelUnchecked;
+impl BenchmarkableParallelSort for ParallelUnchecked {
+    type ExtraState = ();
+
+    fn get_name() -> &'static str {
+        "parallel unchecked"
+    }
+
+    fn run(
+        mut input: Vec<i32>,
+        mut out: Vec<i32>,
+        threshold: usize,
+        extra_state: &mut Self::ExtraState,
+    ) {
+        merge_sort_parallel_unchecked(&mut input, &mut out, threshold);
     }
 }
 
 fn parallel_unchecked_mergesort(c: &mut Criterion) {
-    for size in ARRAY_SIZES {
-        let threshold = get_threshold(size);
-        c.bench_with_input(
-            BenchmarkId::new("parallel_mergesort_unchecked", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let mut arr = black_box(get_input_array(size));
-                    let mut out_arr = black_box(vec![0; arr.len()]);
-                    merge_sort_parallel_unchecked(
-                        black_box(&mut arr),
-                        black_box(&mut out_arr),
-                        black_box(threshold),
-                    );
-                })
-            },
-        );
+    benchmark_parallel_sort::<ParallelUnchecked>(c, &mut ());
+}
+
+struct ThreadPoolSort;
+impl BenchmarkableParallelSort for ThreadPoolSort {
+    type ExtraState = ();
+
+    fn get_name() -> &'static str {
+        "threadpool mergesort"
+    }
+
+    fn run(mut input: Vec<i32>, mut out: Vec<i32>, threshold: usize, _: &mut ()) {
+        merge_sort_threadpool(&mut input, &mut out, threshold);
     }
 }
 
 fn threadpool_mergesort(c: &mut Criterion) {
-    for size in ARRAY_SIZES {
-        let threshold = get_threshold(size);
-        c.bench_with_input(
-            BenchmarkId::new("threadpool_mergesort", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let mut arr = black_box(get_input_array(size));
-                    let mut out_arr = black_box(vec![0; arr.len()]);
-                    merge_sort_threadpool(
-                        black_box(&mut arr),
-                        black_box(&mut out_arr),
-                        black_box(threshold),
-                    );
-                })
-            },
-        );
-    }
+    benchmark_parallel_sort::<ThreadPoolSort>(c, &mut ());
 }
 
 fn seq_mergesort(c: &mut Criterion) {
@@ -137,190 +158,171 @@ fn array_seq_mergesort(c: &mut Criterion) {
     }
 }
 
+struct VerusParallelSort;
+impl BenchmarkableParallelSort for VerusParallelSort {
+    type ExtraState = ();
+
+    fn get_name() -> &'static str {
+        "verus parallel sort"
+    }
+
+    fn run(input: Vec<i32>, out: Vec<i32>, threshold: usize, _: &mut ()) {
+        let mut arr = ArrayAbstraction::new(input);
+        disjoint_verified::split_at::mergesort::merge_sort_parallel_abstraction(
+            &mut arr, out, threshold,
+        )
+        .unwrap();
+    }
+}
+
 fn array_par_mergesort(c: &mut Criterion) {
-    for size in ARRAY_SIZES {
-        let threshold = get_threshold(size);
-        c.bench_with_input(
-            BenchmarkId::new("array_par_mergesort", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let arr = black_box(get_input_array(size));
-                    let mut arr = ArrayAbstraction::new(arr);
-                    let out_array = vec![0; arr.array.length()];
-                    disjoint_verified::split_at::mergesort::merge_sort_parallel_abstraction(
-                        &mut arr,
-                        black_box(out_array),
-                        threshold,
-                    )
-                    .unwrap();
-                });
-            },
-        );
+    benchmark_parallel_sort::<VerusParallelSort>(c, &mut ());
+}
+
+struct RayonSort;
+impl BenchmarkableParallelSort for RayonSort {
+    type ExtraState = ();
+
+    fn get_name() -> &'static str {
+        "rayon parallel sort"
+    }
+
+    fn run(mut input: Vec<i32>, mut out: Vec<i32>, threshold: usize, _: &mut ()) {
+        input.as_mut_slice().par_sort();
     }
 }
 
 fn rayon_par_mergesort(c: &mut Criterion) {
-    for size in ARRAY_SIZES {
-        c.bench_with_input(
-            BenchmarkId::new("rayon_par_mergesort", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let mut arr = black_box(get_input_array(size));
-                    let arr = black_box(&mut arr);
-                    arr.as_mut_slice().par_sort();
-                    black_box(arr);
-                });
-            },
-        );
+    benchmark_parallel_sort::<RayonSort>(c, &mut ());
+}
+
+struct VerusParallelNoGhost;
+impl BenchmarkableParallelSort for VerusParallelNoGhost {
+    type ExtraState = ();
+
+    fn get_name() -> &'static str {
+        "verus parallel without ghost code"
+    }
+
+    fn run(input: Vec<i32>, out: Vec<i32>, threshold: usize, _: &mut ()) {
+        let mut arr =
+            mergesort_benchmarks::merge_sorts::verus_without_ghost::ArrayAbstraction::new(input);
+        mergesort_benchmarks::merge_sorts::verus_without_ghost::mergesort::merge_sort_parallel_abstraction(
+            &mut arr,
+            out,
+            threshold,
+        )
+        .unwrap();
     }
 }
 
 fn without_ghost_array_par_mergesort(c: &mut Criterion) {
-    for size in ARRAY_SIZES {
-        let threshold = get_threshold(size);
-        c.bench_with_input(
-            BenchmarkId::new("without_ghost_array_par_mergesort", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let arr = black_box(get_input_array(size));
+    benchmark_parallel_sort::<VerusParallelNoGhost>(c, &mut ());
+}
+
+struct VerusChanged5;
+impl BenchmarkableParallelSort for VerusChanged5 {
+    type ExtraState = ();
+
+    fn get_name() -> &'static str {
+        "verus parallel without ghost, without maybeuninit, no arc, inlined"
+    }
+
+    fn run(input: Vec<i32>, mut out: Vec<i32>, threshold: usize, _: &mut ()) {
         let mut arr =
-            mergesort_benchmarks::merge_sorts::verus_without_ghost::ArrayAbstraction::new(arr);
-                    let out_array = vec![0; arr.array.length()];
-                    mergesort_benchmarks::merge_sorts::verus_without_ghost::mergesort::merge_sort_parallel_abstraction(
-                        &mut arr,
-                        black_box(out_array),
-                        threshold,
-                    )
-                    .unwrap();
-                });
-            },
-        );
-    }
-}
-
-fn without_ghost_changed_array_par_mergesort(c: &mut Criterion) {
-    for size in ARRAY_SIZES {
-        let threshold = get_threshold(size);
-        c.bench_with_input(
-            BenchmarkId::new("without_ghost_changed_array_par_mergesort", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let arr = black_box(get_input_array(size));
-                    let mut arr =
-                        mergesort_benchmarks::merge_sorts::verus_without_ghost_changed::ArrayAbstraction::new(
-                            arr,
-                        );
-                    let out_array = vec![0; arr.array.length()];
-                    mergesort_benchmarks::merge_sorts::verus_without_ghost_changed::mergesort::merge_sort_parallel_abstraction(
-                        &mut arr,
-                        black_box(out_array),
-                        threshold,
-                    )
-                    .unwrap();
-                });
-            },
-        );
-    }
-}
-
-fn verus_changed2_par_mergesort(c: &mut Criterion) {
-    for size in ARRAY_SIZES {
-        let threshold = get_threshold(size);
-        c.bench_with_input(
-            BenchmarkId::new("verus_no_ghost_no_maybeuninit_no_arc", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let arr = black_box(get_input_array(size));
-                    let mut arr = mergesort_benchmarks::merge_sorts::verus_changed2::ArrayAbstraction::new(arr);
-                    let out_array = vec![0; arr.array.length()];
-                    mergesort_benchmarks::merge_sorts::verus_changed2::mergesort::merge_sort_parallel_abstraction(
-                        &mut arr,
-                        black_box(out_array),
-                        threshold,
-                    )
-                    .unwrap();
-                });
-            },
-        );
-    }
-}
-
-fn verus_changed3_par_mergesort(c: &mut Criterion) {
-    for size in ARRAY_SIZES {
-        let threshold = get_threshold(size);
-        c.bench_with_input(
-            BenchmarkId::new("verus_no_ghost_no_maybeuninit_no_arc_no_unsafecell", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let arr = black_box(get_input_array(size));
-                    let mut arr = mergesort_benchmarks::merge_sorts::verus_changed3::ArrayAbstraction::new(arr);
-                    let out_array = vec![0; arr.array.length()];
-                    mergesort_benchmarks::merge_sorts::verus_changed3::mergesort::merge_sort_parallel_abstraction(
-                        &mut arr,
-                        black_box(out_array),
-                        threshold,
-                    )
-                    .unwrap();
-                });
-            },
-        );
+            mergesort_benchmarks::merge_sorts::verus_changed5::ArrayAbstraction::new(input);
+        mergesort_benchmarks::merge_sorts::verus_changed5::mergesort::merge_sort_parallel_abstraction(
+            &mut arr,
+            out,
+            threshold,
+        )
+        .unwrap();
     }
 }
 
 fn verus_changed5_par_mergesort(c: &mut Criterion) {
-    for size in ARRAY_SIZES {
-        let threshold = get_threshold(size);
-        c.bench_with_input(
-            BenchmarkId::new("verus_no_ghost_no_maybeuninit_no_arc_inlined", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let arr = black_box(get_input_array(size));
-                    let mut arr = mergesort_benchmarks::merge_sorts::verus_changed5::ArrayAbstraction::new(arr);
-                    let out_array = vec![0; arr.array.length()];
-                    mergesort_benchmarks::merge_sorts::verus_changed5::mergesort::merge_sort_parallel_abstraction(
-                        &mut arr,
-                        black_box(out_array),
-                        threshold,
-                    )
-                    .unwrap();
-                });
-            },
+    benchmark_parallel_sort::<VerusChanged5>(c, &mut ());
+}
+
+struct ParallelProfiled;
+impl BenchmarkableParallelSort for ParallelProfiled {
+    type ExtraState = (Mutex<Stats>, Vec<Duration>);
+
+    fn get_name() -> &'static str {
+        "parallel profiled"
+    }
+
+    fn run(
+        mut input: Vec<i32>,
+        mut out: Vec<i32>,
+        threshold: usize,
+        extra_state: &mut Self::ExtraState,
+    ) {
+        mergesort_benchmarks::merge_sorts::parallel_profiled::merge_sort_parallel(
+            &mut input,
+            &mut out,
+            threshold,
+            &extra_state.0,
+            &mut extra_state.1,
         );
     }
 }
 
+fn format_merge_times(merge_times: &Vec<Duration>) -> Vec<u128> {
+    merge_times.iter().map(|d| d.as_micros()).collect()
+}
+
 fn par_mergesort_profiled(c: &mut Criterion) {
-    let stats = Mutex::new(Stats::new());
-    for size in ARRAY_SIZES {
-        let threshold = get_threshold(size);
-        c.bench_with_input(
-            BenchmarkId::new("verus_no_ghost_no_maybeuninit_no_arc_inlined", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let mut arr = black_box(get_input_array(size));
-                    let mut out_array = vec![0; arr.len()];
-                    mergesort_benchmarks::merge_sorts::parallel_profiled::merge_sort_parallel(
-                        &mut arr,
-                        black_box(&mut out_array),
-                        threshold,
-                        &stats,
-                    );
-                });
-            },
-        );
+    let mut stats = (Mutex::new(Stats::new()), vec![]);
+    benchmark_parallel_sort::<ParallelProfiled>(c, &mut stats);
+    let mut file = File::create("parallel_stats.txt").unwrap();
+    println!("merge_time_len={}", stats.1.len());
+    writeln!(file, "{:#?}", format_merge_times(&stats.1)).unwrap();
+}
+
+struct VerusNoGhostProfiled;
+impl BenchmarkableParallelSort for VerusNoGhostProfiled {
+    type ExtraState = (Mutex<Stats>, MergeTimes);
+
+    fn get_name() -> &'static str {
+        "verus no ghost profiled"
     }
+
+    fn run(input: Vec<i32>, out: Vec<i32>, threshold: usize, extra_state: &mut Self::ExtraState) {
+        let mut arr =
+            mergesort_benchmarks::merge_sorts::verus_without_ghost::ArrayAbstraction::new(input);
+        mergesort_benchmarks::merge_sorts::verus_without_ghost_profiled::mergesort::merge_sort_parallel_abstraction(
+            &mut arr, out, threshold, &extra_state.0, &mut extra_state.1
+        ).unwrap();
+    }
+}
+
+fn print_stats(stats: &Mutex<Stats>) {
+    let stats = stats.lock().unwrap();
+    let stats = stats
+        .iter()
+        .map(|(size, durs)| {
+            (
+                *size,
+                durs.into_iter().map(|d| d.as_millis()).collect::<Vec<_>>(),
+            )
+        })
+        .collect::<HashMap<_, _>>();
+    println!("{stats:#?}");
+}
+
+fn verus_no_ghost_profiled(c: &mut Criterion) {
+    let mut stats = (Mutex::new(Stats::new()), vec![]);
+    benchmark_parallel_sort::<VerusNoGhostProfiled>(c, &mut stats);
+
+    let mut file = File::create("verus_no_ghost_stats.txt").unwrap();
+    println!("merge_time_len={}", stats.1.len());
+    writeln!(file, "{:#?}", format_merge_times(&stats.1)).unwrap();
 }
 
 static ARRAY_SIZES: [usize; 1] = [
     // /* 50_000,*/ /* 100_000, 500_000, */ 1_000_000,
+    // 1_000_000,
     // 2_000_000,
     // 4_000_000,
     // 8_000_000,
@@ -332,15 +334,18 @@ static ARRAY_SIZES: [usize; 1] = [
 fn small_config() -> Criterion {
     Criterion::default()
         .sample_size(10)
-        .measurement_time(Duration::from_secs(40))
+        // .measurement_time(Duration::from_secs(15))
 }
 
 criterion_group! {
     name = merge_sorts;
     config = small_config();
     /*unchecked_seq_mergesort*//* without_ghost_array_par_mergesort, without_ghost_changed_array_par_mergesort,*/ /* verus_changed2_par_mergesort, verus_changed3_par_mergesort */
-    targets = parallel_mergesort, /*seq_mergesort,*/ /* threadpool_mergesort,*/ /*array_seq_mergesort,*/
-    array_par_mergesort,
+    targets =
+    // parallel_mergesort, /*seq_mergesort,*/ /* threadpool_mergesort,*/ /*array_seq_mergesort,*/
+    // array_par_mergesort,
+    par_mergesort_profiled,
+    verus_no_ghost_profiled,
         // verus_changed4_par_mergesort,
         // verus_changed5_par_mergesort
     // targets = rayon_par_mergesort
