@@ -164,7 +164,7 @@ pub mod region_array {
 pub mod mergesort {
     use super::*;
     use std::sync::Arc;
-    fn merge(
+    pub fn merge(
         array: &Array<i32>,
         mut left_lo: usize,
         left_hi: usize,

@@ -19,6 +19,10 @@ criterion = { version = "0.5", features = ["html_reports"] }
 name = "parallel_split_at"
 harness = false
 
+[[bench]]
+name = "merge"
+harness = false
+
 [profile.bench]
 inherits = "release"
 debug = true
