@@ -9,6 +9,7 @@ use mergesort_benchmarks::{
         parallel_profiled::{self, MergeTimes, Stats},
     },
 };
+use paste::paste;
 use rand::RngCore;
 use rayon::slice::ParallelSliceMut;
 use std::io::Write;
@@ -53,6 +54,33 @@ fn benchmark_parallel_sort<Sort: BenchmarkableParallelSort>(
             });
         });
     }
+}
+
+fn benchmark_sequential_sort<Sort: BenchmarkableParallelSort<ExtraState = ()>>(c: &mut Criterion) {
+    for size in ARRAY_SIZES {
+        let input = get_input_array(size);
+        c.bench_with_input(
+            BenchmarkId::new(format!("sequentially executed {}", Sort::get_name()), size),
+            &size,
+            |b, _| {
+                b.iter(|| {
+                    let arr = black_box(input.clone());
+                    let out_arr = black_box(vec![0; arr.len()]);
+                    Sort::run(arr, out_arr, size, &mut ());
+                });
+            },
+        );
+    }
+}
+
+macro_rules! bench_sequential_sort {
+    ($type:ty) => {
+        paste! {
+            fn [<sequentially_executed_ $type>](c: &mut Criterion) {
+                benchmark_sequential_sort::<$type>(c);
+            }
+        }
+    };
 }
 
 struct ParallelMergesort;
@@ -179,6 +207,7 @@ impl BenchmarkableParallelSort for VerusParallelSort {
 fn array_par_mergesort(c: &mut Criterion) {
     benchmark_parallel_sort::<VerusParallelSort>(c, &mut ());
 }
+
 
 struct RayonSort;
 impl BenchmarkableParallelSort for RayonSort {
@@ -322,6 +351,8 @@ fn minimal_standard(c: &mut Criterion) {
     benchmark_parallel_sort::<MinimalStandard>(c, &mut ());
 }
 
+bench_sequential_sort!(MinimalStandard);
+
 struct MinimalStandardUnchecked;
 impl BenchmarkableParallelSort for MinimalStandardUnchecked {
     type ExtraState = ();
@@ -370,6 +401,8 @@ impl BenchmarkableParallelSort for MinimalVerus {
 fn minimal_verus(c: &mut Criterion) {
     benchmark_parallel_sort::<MinimalVerus>(c, &mut ());
 }
+
+bench_sequential_sort!(MinimalVerus);
 
 struct MinimalVerusSlice;
 impl BenchmarkableParallelSort for MinimalVerusSlice {
@@ -475,6 +508,32 @@ fn minimal_verus_super_raw(c: &mut Criterion) {
     benchmark_parallel_sort::<MinimalVerusSuperRaw>(c, &mut ());
 }
 
+struct MinimalVerusSuperRawLessArgs;
+impl BenchmarkableParallelSort for MinimalVerusSuperRawLessArgs {
+    type ExtraState = ();
+
+    fn get_name() -> &'static str {
+        "minimal verus with *mut no unsafecell, less args parallel"
+    }
+
+    fn run(input: Vec<i32>, out: Vec<i32>, threshold: usize, _: &mut Self::ExtraState) {
+        mergesort_benchmarks::merge_sorts::minimalistic_sorts::no_splits_super_raw_less_args::merge_sort_parallel(
+            no_splits_super_raw::Array(input.as_ptr() as *mut i32),
+            0,
+            input.len(),
+            no_splits_super_raw::Array(out.as_ptr() as *mut i32),
+            0,
+            threshold,
+        );
+    }
+}
+
+fn minimal_verus_super_raw_less_args(c: &mut Criterion) {
+    benchmark_parallel_sort::<MinimalVerusSuperRawLessArgs>(c, &mut ());
+}
+
+bench_sequential_sort!(MinimalVerusSuperRawLessArgs);
+
 fn print_stats(stats: &Mutex<Stats>) {
     let stats = stats.lock().unwrap();
     let stats = stats
@@ -498,22 +557,21 @@ fn verus_no_ghost_profiled(c: &mut Criterion) {
     writeln!(file, "{:?}", format_merge_times(&stats.1)).unwrap();
 }
 
-static ARRAY_SIZES: [usize; 3] = [
+static ARRAY_SIZES: [usize; 4] = [
     // /* 50_000,*/ /* 100_000, 500_000, */ 1_000_000,
     // 100_000,
     // 1_000_000,
     // 2_000_000,
-    // 4_000_000,
-    // 8_000_000,
+    4_000_000,
+    8_000_000,
     20_000_000,
     50_000_000,
-    100_000_000,
+    // 100_000_000,
 ];
 
 fn small_config() -> Criterion {
-    Criterion::default()
-        .sample_size(10)
-        .measurement_time(Duration::from_secs(60))
+    Criterion::default().sample_size(10)
+    .measurement_time(Duration::from_secs(60))
 }
 
 criterion_group! {
@@ -530,12 +588,16 @@ criterion_group! {
     // targets = rayon_par_mergesort
     // targets = unchecked_seq_mergesort
     // targets = parallel_unchecked_mergesort, rayon_par_mergesort
-    minimal_standard,
+    // minimal_standard,
     // minimal_standard_unchecked,
     // minimal_verus_slice,
     // minimal_verus,
     // minimal_verus_raw,
     // minimal_verus_slice_unwrap,
-    minimal_verus_super_raw,
+    // minimal_verus_super_raw,
+    // minimal_verus_super_raw_less_args,
+    sequentially_executed_MinimalStandard,
+    sequentially_executed_MinimalVerus,
+    sequentially_executed_MinimalVerusSuperRawLessArgs,
 }
 criterion_main!(merge_sorts);
