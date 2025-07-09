@@ -209,6 +209,7 @@ pub mod no_splits {
     }
 
     fn merge(
+        // LOOK, extra indirection in comparison to &[i32]. pointer is stored at *array, not array
         array: &Vec<PCell>,
         mut left_lo: usize, // look, these are the same pairs of (lo, hi) that would be stored in a slice otherwise
         left_hi: usize,
@@ -273,6 +274,138 @@ pub mod no_splits {
         mut lo: usize,
         hi: usize,
         out_arr: &Vec<PCell>,
+        mut out_lo: usize,
+        threshold: usize,
+    ) -> Result<(), &'static str> {
+        let mid = lo + (hi - lo) / 2;
+        let out_mid = out_lo + (hi - lo) / 2;
+        if mid == lo {
+            return Ok(());
+        }
+        if hi - lo <= threshold {
+            merge_sort(arr, lo, hi, out_arr, out_lo);
+            return Ok(());
+        }
+        std::thread::scope(|scope| {
+            let left_perms = scope.spawn(move || -> Result<(), ()> {
+                let t = merge_sort_parallel(arr, lo, mid, out_arr, out_lo, threshold);
+                if t.is_err() {
+                    return Err(());
+                } else {
+                    Ok(())
+                }
+            });
+            match merge_sort_parallel(arr, mid, hi, out_arr, out_mid, threshold) {
+                Ok(()) => {}
+                Err(_) => {
+                    return Result::Err("error while joining threads");
+                }
+            };
+            match left_perms.join() {
+                Result::Ok(Ok(_)) => Ok(()),
+                _ => {
+                    return Result::Err("error while joining threads");
+                }
+            }
+        })?;
+        merge(&arr, lo, mid, mid, hi, &out_arr, out_lo);
+        while lo < hi {
+            let e = read(out_arr, out_lo);
+            set(arr, lo, e);
+            out_lo += 1;
+            lo += 1;
+        }
+        Ok(())
+    }
+}
+
+pub mod no_splits_slice {
+    use std::cell::UnsafeCell;
+
+    pub struct PCell(UnsafeCell<i32>);
+
+    unsafe impl Send for PCell {}
+    unsafe impl Sync for PCell {}
+
+    #[inline(always)]
+    pub fn set(aself: &[PCell], i: usize, x: i32) {
+        unsafe {
+            let ai = aself.get_unchecked(i);
+            *ai.0.get() = x;
+        }
+    }
+
+    #[inline(always)]
+    pub fn read(aself: &[PCell], i: usize) -> i32 {
+        unsafe { *aself.get_unchecked(i).0.get() }
+    }
+
+    fn merge(
+        // LOOK, extra indirection in comparison to &[i32]. pointer is stored at *array, not array
+        array: &[PCell],
+        mut left_lo: usize, // look, these are the same pairs of (lo, hi) that would be stored in a slice otherwise
+        left_hi: usize,
+        mut right_lo: usize,
+        right_hi: usize,
+        out_array: &[PCell],
+        mut out_lo: usize,
+    ) {
+        while left_lo < left_hi && right_lo < right_hi {
+            let element: i32;
+            if read(array, left_lo) < read(array, right_lo) {
+                element = read(array, left_lo);
+                left_lo += 1;
+            } else {
+                element = read(array, right_lo);
+                right_lo += 1;
+            }
+            set(out_array, out_lo, element);
+            out_lo += 1;
+        }
+        if left_lo < left_hi {
+            while left_lo < left_hi {
+                let e = read(array, left_lo);
+                set(out_array, out_lo, e);
+                left_lo += 1;
+                out_lo += 1;
+            }
+        } else if right_lo < right_hi {
+            while right_lo < right_hi {
+                let e = read(array, right_lo);
+                set(out_array, out_lo, e);
+                right_lo += 1;
+                out_lo += 1;
+            }
+        }
+    }
+
+    fn merge_sort(
+        arr: &[PCell],
+        mut lo: usize,
+        hi: usize,
+        out_arr: &[PCell],
+        mut out_lo: usize,
+    ) {
+        let mid = lo + (hi - lo) / 2;
+        if mid == lo {
+            return;
+        }
+        merge_sort(arr, lo, mid, out_arr, out_lo);
+        merge_sort(arr, mid, hi, out_arr, out_lo);
+        merge(arr, lo, mid, mid, hi, out_arr, out_lo);
+        while lo < hi {
+            let e = read(out_arr, out_lo);
+            set(arr, lo, e);
+            out_lo += 1;
+            lo += 1;
+        }
+    }
+
+    pub fn merge_sort_parallel(
+        arr: &[PCell],
+        mut lo: usize,
+        hi: usize,
+        out_arr: &[PCell],
         mut out_lo: usize,
         threshold: usize,
     ) -> Result<(), &'static str> {
