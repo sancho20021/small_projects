@@ -3,7 +3,10 @@ use disjoint_mut_test::disjoint_verified::{self, exec_pcell::Array, split_at::Ar
 use mergesort_benchmarks::{
     get_threshold,
     merge_sorts::{
-        merge_sort, merge_sort_parallel, merge_sort_parallel_unchecked, merge_sort_threadpool, merge_sort_unchecked, minimalistic_sorts::no_splits_slice::PCell, parallel_profiled::{self, MergeTimes, Stats}
+        merge_sort, merge_sort_parallel, merge_sort_parallel_unchecked, merge_sort_threadpool,
+        merge_sort_unchecked,
+        minimalistic_sorts::{no_splits::PCell, no_splits_raw},
+        parallel_profiled::{self, MergeTimes, Stats},
     },
 };
 use rand::RngCore;
@@ -395,6 +398,59 @@ fn minimal_verus_slice(c: &mut Criterion) {
     benchmark_parallel_sort::<MinimalVerusSlice>(c, &mut ());
 }
 
+struct MinimalVerusRaw;
+impl BenchmarkableParallelSort for MinimalVerusRaw {
+    type ExtraState = ();
+
+    fn get_name() -> &'static str {
+        "minimal verus with *const parallel"
+    }
+
+    fn run(input: Vec<i32>, out: Vec<i32>, threshold: usize, _: &mut Self::ExtraState) {
+        let arr: Vec<PCell> = unsafe { std::mem::transmute(input) };
+        let out: Vec<PCell> = unsafe { std::mem::transmute(out) };
+        mergesort_benchmarks::merge_sorts::minimalistic_sorts::no_splits_raw::merge_sort_parallel(
+            no_splits_raw::Array(arr.as_ptr()),
+            0,
+            arr.len(),
+            no_splits_raw::Array(out.as_ptr()),
+            0,
+            threshold,
+        )
+        .unwrap();
+    }
+}
+
+fn minimal_verus_raw(c: &mut Criterion) {
+    benchmark_parallel_sort::<MinimalVerusRaw>(c, &mut ());
+}
+
+struct MinimalVerusSliceUnwrap;
+impl BenchmarkableParallelSort for MinimalVerusSliceUnwrap {
+    type ExtraState = ();
+
+    fn get_name() -> &'static str {
+        "minimal verus with slice and easier spawning parallel"
+    }
+
+    fn run(input: Vec<i32>, out: Vec<i32>, threshold: usize, _: &mut Self::ExtraState) {
+        let arr: Vec<PCell> = unsafe { std::mem::transmute(input) };
+        let out: Vec<PCell> = unsafe { std::mem::transmute(out) };
+        mergesort_benchmarks::merge_sorts::minimalistic_sorts::no_splits_slice_easier_spawning::merge_sort_parallel(
+            &arr,
+            0,
+            arr.len(),
+            &out,
+            0,
+            threshold,
+        );
+    }
+}
+
+fn minimal_verus_slice_unwrap(c: &mut Criterion) {
+    benchmark_parallel_sort::<MinimalVerusSliceUnwrap>(c, &mut ());
+}
+
 fn print_stats(stats: &Mutex<Stats>) {
     let stats = stats.lock().unwrap();
     let stats = stats
@@ -418,21 +474,21 @@ fn verus_no_ghost_profiled(c: &mut Criterion) {
     writeln!(file, "{:?}", format_merge_times(&stats.1)).unwrap();
 }
 
-static ARRAY_SIZES: [usize; 2] = [
+static ARRAY_SIZES: [usize; 3] = [
     // /* 50_000,*/ /* 100_000, 500_000, */ 1_000_000,
+    // 100_000,
     // 1_000_000,
     // 2_000_000,
     // 4_000_000,
     // 8_000_000,
-    // 20_000_000,
+    20_000_000,
     50_000_000,
     100_000_000,
 ];
 
 fn small_config() -> Criterion {
-    Criterion::default()
-        .sample_size(10)
-        .measurement_time(Duration::from_secs(60))
+    Criterion::default().sample_size(10)
+    .measurement_time(Duration::from_secs(60))
 }
 
 criterion_group! {
@@ -451,7 +507,9 @@ criterion_group! {
     // targets = parallel_unchecked_mergesort, rayon_par_mergesort
     minimal_standard,
     // minimal_standard_unchecked,
-    minimal_verus_slice,
-    minimal_verus,
+    // minimal_verus_slice,
+    // minimal_verus,
+    // minimal_verus_raw,
+    minimal_verus_slice_unwrap,
 }
 criterion_main!(merge_sorts);
