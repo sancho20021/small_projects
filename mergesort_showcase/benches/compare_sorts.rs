@@ -1,41 +1,61 @@
 use std::time::Duration;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use mergesort_showcase::{single_array_sort, slices_sort};
+use mergesort_showcase::{single_array_sort, slices_sort, slices_unchecked_sort};
 
 use crate::utils::benchmark_sort;
 
-const SEQ_ARRAY_SIZES: [usize; 1] = [
-    100_000,
-    // 1_000_000,
-    // 10_000_000
-];
-const PAR_ARRAY_SIZES: [usize; 1] = [
+const SEQ_ARRAY_SIZES: &[usize] = &[
+    128,
+    512,
+    2_048,
+    16_384,
+    65_536,
+    250_000,
+    1_000_000,
+    5_000_000,
     10_000_000,
-    // 20_000_000,
-    // 100_000_000
+];
+const PAR_ARRAY_SIZES: &[usize] = &[
+    250_000,
+    500_000,
+    2_000_000,
+    8_000_000,
+    16_000_000,
+    64_000_000,
+    100_000_000,
 ];
 
 fn config() -> Criterion {
     Criterion::default()
-        .sample_size(10)
-        // .measurement_time(Duration::from_secs(60))
+        .sample_size(20)
+        .measurement_time(Duration::from_secs(60))
 }
 
 fn bench_slices_parallel(c: &mut Criterion) {
     benchmark_sort(
         c,
-        &PAR_ARRAY_SIZES,
+        PAR_ARRAY_SIZES,
         true,
         "slices parallel",
         slices_sort::merge_sort_parallel,
     );
 }
 
+fn bench_slices_unchecked_parallel(c: &mut Criterion) {
+    benchmark_sort(
+        c,
+        PAR_ARRAY_SIZES,
+        true,
+        "slices unchecked parallel",
+        slices_unchecked_sort::merge_sort_parallel,
+    );
+}
+
 fn bench_single_array_parallel(c: &mut Criterion) {
     benchmark_sort(
         c,
-        &PAR_ARRAY_SIZES,
+        PAR_ARRAY_SIZES,
         true,
         "single array parallel",
         single_array_sort::merge_sort_parallel,
@@ -45,17 +65,27 @@ fn bench_single_array_parallel(c: &mut Criterion) {
 fn bench_slices_sequential(c: &mut Criterion) {
     benchmark_sort(
         c,
-        &SEQ_ARRAY_SIZES,
+        SEQ_ARRAY_SIZES,
         false,
         "slices sequential",
         slices_sort::merge_sort_parallel,
     );
 }
 
+fn bench_slices_unchecked_sequential(c: &mut Criterion) {
+    benchmark_sort(
+        c,
+        SEQ_ARRAY_SIZES,
+        false,
+        "slices unchecked sequential",
+        slices_unchecked_sort::merge_sort_parallel,
+    );
+}
+
 fn bench_single_array_sequential(c: &mut Criterion) {
     benchmark_sort(
         c,
-        &SEQ_ARRAY_SIZES,
+        SEQ_ARRAY_SIZES,
         true,
         "single array sequential",
         single_array_sort::merge_sort_parallel,
@@ -65,12 +95,12 @@ fn bench_single_array_sequential(c: &mut Criterion) {
 criterion_group! {
     name = seq_merge_sorts;
     config = config();
-    targets = bench_slices_sequential, bench_single_array_sequential,
+    targets = bench_slices_sequential, bench_slices_unchecked_sequential, bench_single_array_sequential,
 }
 criterion_group! {
     name = par_merge_sorts;
     config = config();
-    targets = bench_slices_parallel, bench_single_array_parallel,
+    targets = bench_slices_parallel, bench_slices_unchecked_parallel, bench_single_array_parallel,
 }
 criterion_main!(seq_merge_sorts, par_merge_sorts);
 
