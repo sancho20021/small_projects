@@ -5,7 +5,7 @@ use mergesort_benchmarks::{
     merge_sorts::{
         merge_sort, merge_sort_parallel, merge_sort_parallel_unchecked, merge_sort_threadpool,
         merge_sort_unchecked,
-        minimalistic_sorts::{no_splits::PCell, no_splits_raw},
+        minimalistic_sorts::{no_splits::PCell, no_splits_raw, no_splits_super_raw},
         parallel_profiled::{self, MergeTimes, Stats},
     },
 };
@@ -451,6 +451,30 @@ fn minimal_verus_slice_unwrap(c: &mut Criterion) {
     benchmark_parallel_sort::<MinimalVerusSliceUnwrap>(c, &mut ());
 }
 
+struct MinimalVerusSuperRaw;
+impl BenchmarkableParallelSort for MinimalVerusSuperRaw {
+    type ExtraState = ();
+
+    fn get_name() -> &'static str {
+        "minimal verus with *mut no unsafecell parallel"
+    }
+
+    fn run(input: Vec<i32>, out: Vec<i32>, threshold: usize, _: &mut Self::ExtraState) {
+        mergesort_benchmarks::merge_sorts::minimalistic_sorts::no_splits_super_raw::merge_sort_parallel(
+            no_splits_super_raw::Array(input.as_ptr() as *mut i32),
+            0,
+            input.len(),
+            no_splits_super_raw::Array(out.as_ptr() as *mut i32),
+            0,
+            threshold,
+        );
+    }
+}
+
+fn minimal_verus_super_raw(c: &mut Criterion) {
+    benchmark_parallel_sort::<MinimalVerusSuperRaw>(c, &mut ());
+}
+
 fn print_stats(stats: &Mutex<Stats>) {
     let stats = stats.lock().unwrap();
     let stats = stats
@@ -487,8 +511,9 @@ static ARRAY_SIZES: [usize; 3] = [
 ];
 
 fn small_config() -> Criterion {
-    Criterion::default().sample_size(10)
-    .measurement_time(Duration::from_secs(60))
+    Criterion::default()
+        .sample_size(10)
+        .measurement_time(Duration::from_secs(60))
 }
 
 criterion_group! {
@@ -510,6 +535,7 @@ criterion_group! {
     // minimal_verus_slice,
     // minimal_verus,
     // minimal_verus_raw,
-    minimal_verus_slice_unwrap,
+    // minimal_verus_slice_unwrap,
+    minimal_verus_super_raw,
 }
 criterion_main!(merge_sorts);

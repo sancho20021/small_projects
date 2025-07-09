@@ -336,7 +336,6 @@ pub mod no_splits_slice {
     }
 
     fn merge(
-        // LOOK, extra indirection in comparison to &[i32]. pointer is stored at *array, not array
         array: &[PCell],
         mut left_lo: usize, // look, these are the same pairs of (lo, hi) that would be stored in a slice otherwise
         left_hi: usize,
@@ -585,7 +584,6 @@ pub mod no_splits_slice_easier_spawning {
     }
 
     fn merge(
-        // LOOK, extra indirection in comparison to &[i32]. pointer is stored at *array, not array
         array: &[PCell],
         mut left_lo: usize, // look, these are the same pairs of (lo, hi) that would be stored in a slice otherwise
         left_hi: usize,
@@ -664,6 +662,114 @@ pub mod no_splits_slice_easier_spawning {
             left_perms.join().unwrap();
         });
         merge(&arr, lo, mid, mid, hi, &out_arr, out_lo);
+        while lo < hi {
+            let e = read(out_arr, out_lo);
+            set(arr, lo, e);
+            out_lo += 1;
+            lo += 1;
+        }
+    }
+}
+
+pub mod no_splits_super_raw {
+
+    #[derive(Clone, Copy)]
+    pub struct Array(pub *mut i32);
+
+    unsafe impl Send for Array {}
+    unsafe impl Sync for Array {}
+
+    #[inline(always)]
+    pub fn set(aself: Array, i: usize, x: i32) {
+        unsafe {
+            *aself.0.add(i) = x;
+        }
+    }
+
+    #[inline(always)]
+    pub fn read(aself: Array, i: usize) -> i32 {
+        unsafe { *aself.0.add(i) }
+    }
+
+    fn merge(
+        array: Array,
+        mut left_lo: usize, // look, these are the same pairs of (lo, hi) that would be stored in a slice otherwise
+        left_hi: usize,
+        mut right_lo: usize,
+        right_hi: usize,
+        out_array: Array,
+        mut out_lo: usize,
+    ) {
+        while left_lo < left_hi && right_lo < right_hi {
+            let element: i32;
+            if read(array, left_lo) < read(array, right_lo) {
+                element = read(array, left_lo);
+                left_lo += 1;
+            } else {
+                element = read(array, right_lo);
+                right_lo += 1;
+            }
+            set(out_array, out_lo, element);
+            out_lo += 1;
+        }
+        if left_lo < left_hi {
+            while left_lo < left_hi {
+                let e = read(array, left_lo);
+                set(out_array, out_lo, e);
+                left_lo += 1;
+                out_lo += 1;
+            }
+        } else if right_lo < right_hi {
+            while right_lo < right_hi {
+                let e = read(array, right_lo);
+                set(out_array, out_lo, e);
+                right_lo += 1;
+                out_lo += 1;
+            }
+        }
+    }
+
+    fn merge_sort(arr: Array, mut lo: usize, hi: usize, out_arr: Array, mut out_lo: usize) {
+        let mid = lo + (hi - lo) / 2;
+        if mid == lo {
+            return;
+        }
+        merge_sort(arr, lo, mid, out_arr, out_lo);
+        merge_sort(arr, mid, hi, out_arr, out_lo);
+        merge(arr, lo, mid, mid, hi, out_arr, out_lo);
+        while lo < hi {
+            let e = read(out_arr, out_lo);
+            set(arr, lo, e);
+            out_lo += 1;
+            lo += 1;
+        }
+    }
+
+    pub fn merge_sort_parallel(
+        arr: Array,
+        mut lo: usize,
+        hi: usize,
+        out_arr: Array,
+        mut out_lo: usize,
+        threshold: usize,
+    ) {
+        let mid = lo + (hi - lo) / 2;
+        let out_mid = out_lo + (hi - lo) / 2;
+        if mid == lo {
+            return;
+        }
+        if hi - lo <= threshold {
+            merge_sort(arr, lo, hi, out_arr, out_lo);
+            return;
+        }
+        std::thread::scope(|scope| {
+            let left_perms = scope.spawn(move || {
+                merge_sort_parallel(arr, lo, mid, out_arr, out_lo, threshold);
+            });
+            merge_sort_parallel(arr, mid, hi, out_arr, out_mid, threshold);
+            left_perms.join().unwrap();
+        });
+        merge(arr, lo, mid, mid, hi, out_arr, out_lo);
         while lo < hi {
             let e = read(out_arr, out_lo);
             set(arr, lo, e);
