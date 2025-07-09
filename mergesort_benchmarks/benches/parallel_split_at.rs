@@ -321,6 +321,25 @@ fn minimal_standard(c: &mut Criterion) {
     benchmark_parallel_sort::<MinimalStandard>(c, &mut ());
 }
 
+struct MinimalStandardUnchecked;
+impl BenchmarkableParallelSort for MinimalStandardUnchecked {
+    type ExtraState = ();
+
+    fn get_name() -> &'static str {
+        "minimal standard unchecked parallel"
+    }
+
+    fn run(mut input: Vec<i32>, mut out: Vec<i32>, threshold: usize, _: &mut Self::ExtraState) {
+        mergesort_benchmarks::merge_sorts::minimalistic_sorts::standard_unchecked::merge_sort_parallel(
+            &mut input, &mut out, threshold,
+        );
+    }
+}
+
+fn minimal_standard_unchecked(c: &mut Criterion) {
+    benchmark_parallel_sort::<MinimalStandard>(c, &mut ());
+}
+
 struct MinimalVerus;
 impl BenchmarkableParallelSort for MinimalVerus {
     type ExtraState = ();
@@ -330,13 +349,20 @@ impl BenchmarkableParallelSort for MinimalVerus {
     }
 
     fn run(input: Vec<i32>, out: Vec<i32>, threshold: usize, _: &mut Self::ExtraState) {
-        let arr =
-            input;
-        let out =
-            out;
-        mergesort_benchmarks::merge_sorts::minimalistic_sorts::no_splits::mergesort::merge_sort_parallel(
-            &arr, 0, arr.len(), &out, 0, threshold
-        ).unwrap();
+        // LOOK: danger :) Hopefully this is not UB because I take input by value, not by reference
+        // otherwise, if I took by reference, the compiler could optimize all this code away
+        // try looking at godbolt functions on shared references with optimizations on
+        let arr = unsafe { std::mem::transmute(input) };
+        let out = unsafe { std::mem::transmute(out) };
+        mergesort_benchmarks::merge_sorts::minimalistic_sorts::no_splits::merge_sort_parallel(
+            &arr,
+            0,
+            arr.len(),
+            &out,
+            0,
+            threshold,
+        )
+        .unwrap();
     }
 }
 
@@ -367,21 +393,21 @@ fn verus_no_ghost_profiled(c: &mut Criterion) {
     writeln!(file, "{:?}", format_merge_times(&stats.1)).unwrap();
 }
 
-static ARRAY_SIZES: [usize; 3] = [
+static ARRAY_SIZES: [usize; 1] = [
     // /* 50_000,*/ /* 100_000, 500_000, */ 1_000_000,
     // 1_000_000,
     // 2_000_000,
     // 4_000_000,
     // 8_000_000,
     20_000_000,
-    50_000_000,
-    100_000_000,
+    // 50_000_000,
+    // 100_000_000,
 ];
 
 fn small_config() -> Criterion {
     Criterion::default()
         .sample_size(10)
-        .measurement_time(Duration::from_secs(20))
+        .measurement_time(Duration::from_secs(15))
 }
 
 criterion_group! {
@@ -399,6 +425,7 @@ criterion_group! {
     // targets = unchecked_seq_mergesort
     // targets = parallel_unchecked_mergesort, rayon_par_mergesort
     minimal_standard,
-    minimal_verus,
+    minimal_standard_unchecked
+    // minimal_verus,
 }
 criterion_main!(merge_sorts);
