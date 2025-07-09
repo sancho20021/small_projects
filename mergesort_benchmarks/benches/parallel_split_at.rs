@@ -302,6 +302,48 @@ impl BenchmarkableParallelSort for VerusNoGhostProfiled {
     }
 }
 
+struct MinimalStandard;
+impl BenchmarkableParallelSort for MinimalStandard {
+    type ExtraState = ();
+
+    fn get_name() -> &'static str {
+        "minimal standard parallel"
+    }
+
+    fn run(mut input: Vec<i32>, mut out: Vec<i32>, threshold: usize, _: &mut Self::ExtraState) {
+        mergesort_benchmarks::merge_sorts::minimalistic_sorts::standard::merge_sort_parallel(
+            &mut input, &mut out, threshold,
+        );
+    }
+}
+
+fn minimal_standard(c: &mut Criterion) {
+    benchmark_parallel_sort::<MinimalStandard>(c, &mut ());
+}
+
+struct MinimalVerus;
+impl BenchmarkableParallelSort for MinimalVerus {
+    type ExtraState = ();
+
+    fn get_name() -> &'static str {
+        "minimal verus parallel"
+    }
+
+    fn run(input: Vec<i32>, out: Vec<i32>, threshold: usize, _: &mut Self::ExtraState) {
+        let arr =
+            input;
+        let out =
+            out;
+        mergesort_benchmarks::merge_sorts::minimalistic_sorts::no_splits::mergesort::merge_sort_parallel(
+            &arr, 0, arr.len(), &out, 0, threshold
+        ).unwrap();
+    }
+}
+
+fn minimal_verus(c: &mut Criterion) {
+    benchmark_parallel_sort::<MinimalVerus>(c, &mut ());
+}
+
 fn print_stats(stats: &Mutex<Stats>) {
     let stats = stats.lock().unwrap();
     let stats = stats
@@ -325,20 +367,21 @@ fn verus_no_ghost_profiled(c: &mut Criterion) {
     writeln!(file, "{:?}", format_merge_times(&stats.1)).unwrap();
 }
 
-static ARRAY_SIZES: [usize; 1] = [
+static ARRAY_SIZES: [usize; 3] = [
     // /* 50_000,*/ /* 100_000, 500_000, */ 1_000_000,
     // 1_000_000,
     // 2_000_000,
     // 4_000_000,
     // 8_000_000,
-    // 20_000_000,
+    20_000_000,
     50_000_000,
-    // 100_000_000,
+    100_000_000,
 ];
 
 fn small_config() -> Criterion {
-    Criterion::default().sample_size(10)
-    // .measurement_time(Duration::from_secs(15))
+    Criterion::default()
+        .sample_size(10)
+        .measurement_time(Duration::from_secs(20))
 }
 
 criterion_group! {
@@ -348,12 +391,14 @@ criterion_group! {
     targets =
     // parallel_mergesort, /*seq_mergesort,*/ /* threadpool_mergesort,*/ /*array_seq_mergesort,*/
     // array_par_mergesort,
-    par_mergesort_profiled,
-    verus_no_ghost_profiled,
+    // par_mergesort_profiled,
+    // verus_no_ghost_profiled,
         // verus_changed4_par_mergesort,
         // verus_changed5_par_mergesort
     // targets = rayon_par_mergesort
     // targets = unchecked_seq_mergesort
     // targets = parallel_unchecked_mergesort, rayon_par_mergesort
+    minimal_standard,
+    minimal_verus,
 }
 criterion_main!(merge_sorts);

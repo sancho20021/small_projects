@@ -261,3 +261,4 @@ pub mod verus_changed4;
 pub mod verus_changed5;
 pub mod verus_without_ghost_profiled;
 pub mod parallel_profiled;
+pub mod minimalistic_sorts;
