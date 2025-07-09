@@ -27,4 +27,5 @@ harness = false
 
 [profile.bench]
 inherits = "release"
-debug = true
+# debug = true
+debug = false

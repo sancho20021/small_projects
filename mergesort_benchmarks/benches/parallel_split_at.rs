@@ -557,16 +557,16 @@ fn verus_no_ghost_profiled(c: &mut Criterion) {
     writeln!(file, "{:?}", format_merge_times(&stats.1)).unwrap();
 }
 
-static ARRAY_SIZES: [usize; 4] = [
+static ARRAY_SIZES: [usize; 3] = [
     // /* 50_000,*/ /* 100_000, 500_000, */ 1_000_000,
     // 100_000,
     // 1_000_000,
     // 2_000_000,
     4_000_000,
-    8_000_000,
-    20_000_000,
+    // 8_000_000,
+    // 20_000_000,
     50_000_000,
-    // 100_000_000,
+    100_000_000,
 ];
 
 fn small_config() -> Criterion {
@@ -588,16 +588,16 @@ criterion_group! {
     // targets = rayon_par_mergesort
     // targets = unchecked_seq_mergesort
     // targets = parallel_unchecked_mergesort, rayon_par_mergesort
-    // minimal_standard,
+    minimal_standard,
     // minimal_standard_unchecked,
     // minimal_verus_slice,
-    // minimal_verus,
+    minimal_verus,
     // minimal_verus_raw,
     // minimal_verus_slice_unwrap,
     // minimal_verus_super_raw,
-    // minimal_verus_super_raw_less_args,
-    sequentially_executed_MinimalStandard,
-    sequentially_executed_MinimalVerus,
-    sequentially_executed_MinimalVerusSuperRawLessArgs,
+    minimal_verus_super_raw_less_args,
+    // sequentially_executed_MinimalStandard,
+    // sequentially_executed_MinimalVerus,
+    // sequentially_executed_MinimalVerusSuperRawLessArgs,
 }
 criterion_main!(merge_sorts);
