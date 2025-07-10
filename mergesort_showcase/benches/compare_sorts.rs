@@ -2,14 +2,15 @@ use std::time::Duration;
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use mergesort_showcase::{
-    single_array_sort::SingleArray, slices_sort::Slices, slices_unchecked_sort::SlicesUnchecked,
-    threshold_calc::get_threshold,
+    single_array_optimized::SingleArrayOptimized, single_array_sort::SingleArray, slices_sort::Slices, slices_unchecked_sort::SlicesUnchecked, threshold_calc::get_threshold
 };
 
 use crate::utils::bench_sort;
 
 const SEQ_ARRAY_SIZES: &[usize] = &[
-    512, 2_048, 16_384, 65_536, 250_000, 1_000_000, 5_000_000, 10_000_000,
+    512, 2_048, 16_384, 65_536, 250_000,
+    1_000_000,
+    5_000_000, 10_000_000,
 ];
 const PAR_ARRAY_SIZES: &[usize] = &[
     250_000,
@@ -22,7 +23,7 @@ const PAR_ARRAY_SIZES: &[usize] = &[
 ];
 
 fn config() -> Criterion {
-    Criterion::default().sample_size(20)
+    Criterion::default().sample_size(30)
     .measurement_time(Duration::from_secs(50))
 }
 
@@ -33,6 +34,7 @@ fn bench_sequential_sorts(c: &mut Criterion) {
         bench_sort::<Slices>(&mut group, size, threshold, "Slices");
         bench_sort::<SlicesUnchecked>(&mut group, size, threshold, "Slices Unchecked");
         bench_sort::<SingleArray>(&mut group, size, threshold, "Single Array");
+        bench_sort::<SingleArrayOptimized>(&mut group, size, threshold, "Single Array Optimized");
     }
     group.finish();
 }
@@ -44,6 +46,7 @@ fn bench_parallel_sorts(c: &mut Criterion) {
         bench_sort::<Slices>(&mut group, size, threshold, "Slices");
         bench_sort::<SlicesUnchecked>(&mut group, size, threshold, "Slices Unchecked");
         bench_sort::<SingleArray>(&mut group, size, threshold, "Single Array");
+        bench_sort::<SingleArrayOptimized>(&mut group, size, threshold, "Single Array Optimized");
     }
     group.finish();
 }
@@ -63,15 +66,11 @@ criterion_main!(seq_merge_sorts, par_merge_sorts);
 mod utils {
     use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, black_box, measurement::WallTime};
     use mergesort_showcase::Sort;
-    use rand::RngCore;
+    use rand::Rng;
 
     pub fn get_input_array(size: usize) -> Vec<i32> {
         let mut rng = rand::rng();
-        let mut v = vec![];
-        for _ in 0..size {
-            v.push(rng.next_u32() as i32);
-        }
-        v
+        (0..size).map(|_| rng.random()).collect()
     }
 
     pub fn bench_sort<Algorithm: Sort>(
