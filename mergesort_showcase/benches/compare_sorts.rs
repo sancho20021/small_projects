@@ -1,20 +1,15 @@
 use std::time::Duration;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use mergesort_showcase::{single_array_sort, slices_sort, slices_unchecked_sort};
+use mergesort_showcase::{
+    single_array_sort::SingleArray, slices_sort::Slices, slices_unchecked_sort::SlicesUnchecked,
+    threshold_calc::get_threshold,
+};
 
-use crate::utils::benchmark_sort;
+use crate::utils::bench_sort;
 
 const SEQ_ARRAY_SIZES: &[usize] = &[
-    128,
-    512,
-    2_048,
-    16_384,
-    65_536,
-    250_000,
-    1_000_000,
-    5_000_000,
-    10_000_000,
+    512, 2_048, 16_384, 65_536, 250_000, 1_000_000, 5_000_000, 10_000_000,
 ];
 const PAR_ARRAY_SIZES: &[usize] = &[
     250_000,
@@ -27,86 +22,47 @@ const PAR_ARRAY_SIZES: &[usize] = &[
 ];
 
 fn config() -> Criterion {
-    Criterion::default()
-        .sample_size(20)
-        .measurement_time(Duration::from_secs(60))
+    Criterion::default().sample_size(20)
+    .measurement_time(Duration::from_secs(50))
 }
 
-fn bench_slices_parallel(c: &mut Criterion) {
-    benchmark_sort(
-        c,
-        PAR_ARRAY_SIZES,
-        true,
-        "slices parallel",
-        slices_sort::merge_sort_parallel,
-    );
+fn bench_sequential_sorts(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Sequential");
+    for &size in SEQ_ARRAY_SIZES {
+        let threshold = size;
+        bench_sort::<Slices>(&mut group, size, threshold, "Slices");
+        bench_sort::<SlicesUnchecked>(&mut group, size, threshold, "Slices Unchecked");
+        bench_sort::<SingleArray>(&mut group, size, threshold, "Single Array");
+    }
+    group.finish();
 }
 
-fn bench_slices_unchecked_parallel(c: &mut Criterion) {
-    benchmark_sort(
-        c,
-        PAR_ARRAY_SIZES,
-        true,
-        "slices unchecked parallel",
-        slices_unchecked_sort::merge_sort_parallel,
-    );
-}
-
-fn bench_single_array_parallel(c: &mut Criterion) {
-    benchmark_sort(
-        c,
-        PAR_ARRAY_SIZES,
-        true,
-        "single array parallel",
-        single_array_sort::merge_sort_parallel,
-    );
-}
-
-fn bench_slices_sequential(c: &mut Criterion) {
-    benchmark_sort(
-        c,
-        SEQ_ARRAY_SIZES,
-        false,
-        "slices sequential",
-        slices_sort::merge_sort_parallel,
-    );
-}
-
-fn bench_slices_unchecked_sequential(c: &mut Criterion) {
-    benchmark_sort(
-        c,
-        SEQ_ARRAY_SIZES,
-        false,
-        "slices unchecked sequential",
-        slices_unchecked_sort::merge_sort_parallel,
-    );
-}
-
-fn bench_single_array_sequential(c: &mut Criterion) {
-    benchmark_sort(
-        c,
-        SEQ_ARRAY_SIZES,
-        true,
-        "single array sequential",
-        single_array_sort::merge_sort_parallel,
-    );
+fn bench_parallel_sorts(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Parallel");
+    for &size in PAR_ARRAY_SIZES {
+        let threshold = get_threshold(size);
+        bench_sort::<Slices>(&mut group, size, threshold, "Slices");
+        bench_sort::<SlicesUnchecked>(&mut group, size, threshold, "Slices Unchecked");
+        bench_sort::<SingleArray>(&mut group, size, threshold, "Single Array");
+    }
+    group.finish();
 }
 
 criterion_group! {
     name = seq_merge_sorts;
     config = config();
-    targets = bench_slices_sequential, bench_slices_unchecked_sequential, bench_single_array_sequential,
+    targets = bench_sequential_sorts,
 }
 criterion_group! {
     name = par_merge_sorts;
     config = config();
-    targets = bench_slices_parallel, bench_slices_unchecked_parallel, bench_single_array_parallel,
+    targets = bench_parallel_sorts,
 }
 criterion_main!(seq_merge_sorts, par_merge_sorts);
 
 mod utils {
-    use criterion::{BenchmarkId, Criterion, black_box};
-    use mergesort_showcase::threshold_calc::get_threshold;
+    use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, black_box, measurement::WallTime};
+    use mergesort_showcase::Sort;
     use rand::RngCore;
 
     pub fn get_input_array(size: usize) -> Vec<i32> {
@@ -118,22 +74,22 @@ mod utils {
         v
     }
 
-    pub fn benchmark_sort(
-        c: &mut Criterion,
-        sizes: &[usize],
-        parallel: bool,
-        name: &'static str,
-        sort: impl Fn(&mut [i32], usize),
+    pub fn bench_sort<Algorithm: Sort>(
+        group: &mut BenchmarkGroup<WallTime>,
+        array_size: usize,
+        threshold: usize,
+        sort_name: &'static str,
     ) {
-        for &size in sizes {
-            let threshold = if parallel { get_threshold(size) } else { size };
-            let input = get_input_array(size);
-            c.bench_with_input(BenchmarkId::new(name, size), &size, |b, _| {
-                b.iter(|| {
-                    let mut arr = black_box(input.clone());
-                    sort(&mut arr, threshold);
-                });
-            });
-        }
+        group.bench_with_input(
+            BenchmarkId::new(sort_name, array_size),
+            &array_size,
+            |b, size| {
+                b.iter_batched_ref(
+                    || black_box(get_input_array(*size)),
+                    |input| Algorithm::sort(input, threshold),
+                    BatchSize::LargeInput,
+                );
+            },
+        );
     }
 }

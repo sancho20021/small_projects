@@ -1,3 +1,5 @@
+use crate::Sort;
+
 fn merge(left: &[i32], right: &[i32], helper_buf: &mut [i32]) {
     let mut left_index = 0;
     let mut right_index = 0;
@@ -67,7 +69,10 @@ fn _merge_sort_parallel(arr: &mut [i32], helper_buf: &mut [i32], threshold: usiz
     }
 }
 
-pub fn merge_sort_parallel(arr: &mut [i32], threshold: usize) {
-    let mut helper_buf = vec![0; arr.len()];
-    _merge_sort_parallel(arr, &mut helper_buf, threshold);
+pub struct Slices;
+impl Sort for Slices {
+    fn sort(input: &mut [i32], threshold: usize) {
+        let mut helper_buf = vec![0; input.len()];
+        _merge_sort_parallel(input, &mut helper_buf, threshold);
+    }
 }
