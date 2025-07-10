@@ -104,3 +104,11 @@ pub fn merge_sort_parallel(input: &mut [i32], threshold: usize) {
     let helper_buf_array = Array(helper_buf.as_ptr() as *mut i32);
     _merge_sort_parallel(arr, 0, input.len(), helper_buf_array, 0, threshold);
 }
+
+
+#[test]
+fn test_seq() {
+    let mut a = vec![2, 3, 5, 1, 4];
+    merge_sort_parallel(&mut a, 5);
+    assert_eq!(a, vec![1, 2, 3, 4, 5]);
+}
