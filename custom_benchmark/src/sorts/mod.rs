@@ -1,6 +1,7 @@
 pub mod slices;
 pub mod slices_unchecked;
 pub mod verus;
+pub mod naked_verus;
 
 pub type Element = i32;
 

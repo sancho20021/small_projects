@@ -7,13 +7,20 @@ use std::{
 
 use clap::{Parser, arg, command};
 use custom_benchmark::{
-    sorts::{Element, Sort, slices::Slices, slices_unchecked::SlicesUnchecked, verus::Verus},
+    sorts::{
+        Element, Sort, naked_verus::NakedVerus, slices::Slices, slices_unchecked::SlicesUnchecked,
+        verus::Verus,
+    },
     threshold_calc::get_threshold,
     utils::{self, get_input_array},
 };
 
 const SEQ_ARRAY_SIZES: &[usize] = &[65_536, 250_000, 1_000_000, 5_000_000];
-const PAR_ARRAY_SIZES: &[usize] = &[500_000, 1_000_000, 5_000_000, 50_000_000, 100_000_000];
+const PAR_ARRAY_SIZES: &[usize] = &[
+    500_000, 1_000_000, 5_000_000,
+    50_000_000,
+    100_000_000
+    ];
 const SAMPLES_PER_SIZE: u32 = 100;
 
 fn bench_sort<S: Sort>(input: &Vec<Element>, parallel: bool) -> Duration {
@@ -55,11 +62,15 @@ fn estimate_time(parallel: bool, sequential: bool) -> Duration {
     time
 }
 
-fn bench_sorts_once(input: &Vec<Element>, parallel: bool) -> (Duration, Duration, Duration) {
+fn bench_sorts_once(
+    input: &Vec<Element>,
+    parallel: bool,
+) -> (Duration, Duration, Duration, Duration) {
     (
         bench_sort::<Verus>(input, parallel),
         bench_sort::<Slices>(input, parallel),
         bench_sort::<SlicesUnchecked>(input, parallel),
+        bench_sort::<NakedVerus>(input, parallel),
     )
 }
 
@@ -75,6 +86,7 @@ fn bench_sorts_with_size(size: usize, parallel: bool) -> SortsSample {
         (Verus::name(), vec![]),
         (Slices::name(), vec![]),
         (SlicesUnchecked::name(), vec![]),
+        (NakedVerus::name(), vec![]),
     ]
     .into_iter()
     .collect::<HashMap<_, _>>();
@@ -84,15 +96,21 @@ fn bench_sorts_with_size(size: usize, parallel: bool) -> SortsSample {
     print!("{progress:.0} ");
     for _ in 0..SAMPLES_PER_SIZE {
         let input = utils::get_input_array(size);
-        let (verus, slices, slices_unchecked) = {
+        let (verus, slices, slices_unchecked, naked_verus) = {
             let x = bench_sorts_once(&input, parallel);
-            (x.0.as_micros(), x.1.as_micros(), x.2.as_micros())
+            (
+                x.0.as_micros(),
+                x.1.as_micros(),
+                x.2.as_micros(),
+                x.3.as_micros(),
+            )
         };
         res.get_mut(&Verus::name()).unwrap().push(verus);
         res.get_mut(&Slices::name()).unwrap().push(slices);
         res.get_mut(&SlicesUnchecked::name())
             .unwrap()
             .push(slices_unchecked);
+        res.get_mut(&NakedVerus::name()).unwrap().push(naked_verus);
 
         progress += fraction;
         print!("{progress:.0} ");
