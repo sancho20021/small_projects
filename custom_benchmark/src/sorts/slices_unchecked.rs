@@ -52,26 +52,41 @@ fn merge_sort(arr: &mut [i32], helper_buf: &mut [i32]) {
     copy(helper_buf, 0, helper_buf.len(), arr, 0);
 }
 
-fn _merge_sort_parallel(arr: &mut [i32], helper_buf: &mut [i32], threshold: usize) {
+fn _merge_sort_parallel(
+    arr: &mut [i32],
+    helper_buf: &mut [i32],
+    threshold: usize,
+) -> Result<(), ()> {
     let mid = arr.len() / 2;
     if mid == 0 {
-        return;
+        return Ok(());
     }
     if arr.len() <= threshold {
         merge_sort(arr, helper_buf);
-        return;
+        return Ok(());
     }
     let (left, right) = unsafe { arr.split_at_mut_unchecked(mid) };
-    let (out_left, out_right) = unsafe { helper_buf.split_at_mut_unchecked(mid) };
+    let (helper_buf_left, helper_buf_right) = unsafe { helper_buf.split_at_mut_unchecked(mid) };
     std::thread::scope(|s| {
         let left_handle = s.spawn(|| {
-            _merge_sort_parallel(&mut *left, out_left, threshold);
+            let t = _merge_sort_parallel(&mut *left, helper_buf_left, threshold);
+            if t.is_err() { Err(()) } else { Ok(()) }
         });
-        _merge_sort_parallel(&mut *right, out_right, threshold);
-        left_handle.join().unwrap();
-    });
+        match _merge_sort_parallel(&mut *right, helper_buf_right, threshold) {
+            Ok(_) => {}
+            Err(_) => {
+                return Err(());
+            }
+        };
+        match left_handle.join() {
+            Ok(Ok(())) => {}
+            _ => return Err(()),
+        };
+        Ok(())
+    })?;
     merge(left, right, helper_buf);
     copy(helper_buf, 0, helper_buf.len(), arr, 0);
+    Ok(())
 }
 
 pub struct SlicesUnchecked;
@@ -88,7 +103,7 @@ impl Sort for SlicesUnchecked {
     }
 
     fn sort_parallel(input: &mut Self::Array, buf: &mut Self::Array, threshold: usize) {
-        _merge_sort_parallel(input, buf, threshold);
+        _merge_sort_parallel(input, buf, threshold).unwrap();
     }
 
     fn name() -> &'static str {
@@ -100,6 +115,6 @@ impl Sort for SlicesUnchecked {
 fn test() {
     let mut a = vec![2, 3, 5, 1, 4];
     let mut buf = vec![0; 5];
-    _merge_sort_parallel(&mut a, &mut buf, 2);
+    _merge_sort_parallel(&mut a, &mut buf, 2).unwrap();
     assert_eq!(a, vec![1, 2, 3, 4, 5]);
 }

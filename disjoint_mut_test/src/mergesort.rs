@@ -73,7 +73,7 @@ pub fn merge_sort_parallel(
     arr: &mut ArrayForSorting<i32>,
     out_arr: &mut ArrayForSorting<i32>,
     threshold: usize,
-) -> (ret: Result<(), &'static str>)
+) -> (ret: Result<(), ()>)
     requires
         old(arr).perms@.lo() == 0,
         old(arr).perms@.hi() == old(arr).array.len(),
@@ -250,7 +250,7 @@ fn _merge_sort_parallel(
     mut out_lo: usize,
     Tracked(out_perms): Tracked<&mut Region<i32>>,
     threshold: usize
-) -> (ret: Result<(), &'static str>)
+) -> (ret: Result<(), ()>)
     requires
         old(perms).lo() <= lo <= hi <= old(perms).hi() <= arr.len(),
         region_array::wf(*arr, (*old(perms))),
@@ -300,7 +300,7 @@ fn _merge_sort_parallel(
             let ghost old_out_left_perms = out_left_perms;
             let t = _merge_sort_parallel(arr_r1, lo, mid, Tracked(&mut left_perms), out_arr_r1, out_lo, Tracked(&mut out_left_perms), threshold);
             if t.is_err() {
-                return Err(());
+                Err(())
             } else {
                 Ok((Tracked(left_perms), Tracked(out_left_perms)))
             }
@@ -309,7 +309,7 @@ fn _merge_sort_parallel(
 
     match _merge_sort_parallel(arr_r2, mid, hi, Tracked(&mut right_perms), out_arr_r2, out_mid, Tracked(&mut out_right_perms), threshold) {
         Ok(()) => {},
-        Err(_) => {return Result::Err("error while joining threads");},
+        Err(_) => {return Err(());},
     };
 
     let left_perms = left_perms.join();
@@ -319,7 +319,7 @@ fn _merge_sort_parallel(
             l
         },
         _ => {
-            return Result::Err("error while joining threads");
+            return Result::Err(());
         }
     };
 
