@@ -104,6 +104,7 @@ where
     (arr, Tracked(region))
 }
 
+#[inline]
 pub fn replace<T>(aself: &Array<T>, i: usize, x: T, Tracked(perms): Tracked<&mut Region<T>>) -> (res: T)
 where
     requires
@@ -117,6 +118,7 @@ where
     <Array<T>>::replace(aself, i, x, Tracked(&mut perms.perms))
 }
 
+#[inline]
 pub fn read<'a, T>(aself: &'a Array<T>, i: usize, Tracked(perms): Tracked<&'a Region<T>>) -> (res: &'a T)
 where
     requires

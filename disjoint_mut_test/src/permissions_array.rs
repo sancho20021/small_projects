@@ -121,6 +121,7 @@ impl<T> Array<T> {
     }
 
     #[verifier::external_body]
+    #[inline]
     fn vec_replace(v: &Vec<PCell<T>>, i: usize, e: T, Tracked(perm): Tracked<&mut PointsTo<T>>) -> (res: T)
         requires
             i < v@.len(),
@@ -141,6 +142,7 @@ impl<T> Array<T> {
     }
 
     #[verifier::external_body]
+    #[inline]
     fn vec_borrow<'a>(v: &'a Vec<PCell<T>>, i: usize, Tracked(perm): Tracked<&'a PointsTo<T>>) -> (res: &'a T)
         requires
             i < v@.len(),
@@ -156,6 +158,7 @@ impl<T> Array<T> {
         vi.borrow(Tracked(perm))
     }
 
+    #[inline]
     pub fn replace(&self, i: usize, x: T, Tracked(perms): Tracked<&mut SpecPerms<T>>) -> (res: T)
         requires
             i < self.len(),
@@ -175,6 +178,7 @@ impl<T> Array<T> {
         res
     }
 
+    #[inline]
     pub fn read<'a>(&'a self, i: usize, Tracked(perms): Tracked<&'a SpecPerms<T>>) -> (res: &'a T)
         requires
             i < self.len(),

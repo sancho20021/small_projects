@@ -14,7 +14,7 @@ use custom_benchmark::{
 
 const SEQ_ARRAY_SIZES: &[usize] = &[65_536, 250_000, 1_000_000, 5_000_000];
 const PAR_ARRAY_SIZES: &[usize] = &[500_000, 1_000_000, 5_000_000, 50_000_000, 100_000_000];
-const SAMPLES_PER_SIZE: u32 = 50;
+const SAMPLES_PER_SIZE: u32 = 100;
 
 fn bench_sort<S: Sort>(input: &Vec<Element>, parallel: bool) -> Duration {
     let size = input.len();
