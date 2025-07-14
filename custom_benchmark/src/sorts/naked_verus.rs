@@ -1,7 +1,7 @@
-use crate::sorts::{Element, Sort};
+use crate::sorts::{Element};
 
 #[derive(Clone, Copy)]
-struct Array(pub *mut i32);
+pub struct Array(pub *mut i32);
 
 unsafe impl Send for Array {}
 unsafe impl Sync for Array {}
@@ -54,7 +54,7 @@ fn merge(
     copy(array, right_lo, right_hi, helper_buf, helper_buf_lo);
 }
 
-fn merge_sort(arr: Array, lo: usize, hi: usize, helper_buf: Array) {
+pub fn merge_sort(arr: Array, lo: usize, hi: usize, helper_buf: Array) {
     let mid = lo + (hi - lo) / 2;
     if mid == lo {
         return;
@@ -65,7 +65,7 @@ fn merge_sort(arr: Array, lo: usize, hi: usize, helper_buf: Array) {
     copy(helper_buf, lo, hi, arr, lo);
 }
 
-fn _merge_sort_parallel(
+pub fn _merge_sort_parallel(
     arr: Array,
     lo: usize,
     hi: usize,
@@ -100,37 +100,4 @@ fn _merge_sort_parallel(
     merge(arr, lo, mid, hi, helper_buf, lo);
     copy(helper_buf, lo, hi, arr, lo);
     Ok(())
-}
-
-pub struct NakedVerus;
-impl Sort for NakedVerus {
-    type Array = Vec<Element>;
-
-    fn prepare_array(input: Vec<Element>) -> (Self::Array, Self::Array) {
-        let helper_buf = vec![0; input.len()];
-        (input, helper_buf)
-    }
-
-    fn sort(input: &mut Self::Array, buf: &mut Self::Array) {
-        let input_a = Array(input.as_ptr() as *mut i32);
-        let buf_a = Array(buf.as_ptr() as *mut i32);
-        merge_sort(input_a, 0, input.len(), buf_a);
-    }
-
-    fn sort_parallel(input: &mut Self::Array, buf: &mut Self::Array, threshold: usize) {
-        let input_a = Array(input.as_ptr() as *mut i32);
-        let buf_a = Array(buf.as_ptr() as *mut i32);
-        _merge_sort_parallel(input_a, 0, input.len(), buf_a, threshold).unwrap();
-    }
-
-    fn name() -> &'static str {
-        "naked verus"
-    }
-}
-
-#[test]
-fn test_seq() {
-    let mut a = vec![2, 3, 5, 1, 4];
-    NakedVerus::sort(&mut a, &mut vec![0; 5]);
-    assert_eq!(a, vec![1, 2, 3, 4, 5]);
 }

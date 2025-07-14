@@ -7,3 +7,6 @@ edition = "2024"
 clap = { version = "4.5.32", features = ["derive"] }
 disjoint_mut_test = { path = "../disjoint_mut_test"}
 rand = "0.9.1"
+
+[dev-dependencies]
+enum-iterator = "2.1.0"

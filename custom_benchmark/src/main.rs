@@ -7,30 +7,35 @@ use std::{
 
 use clap::{Parser, arg, command};
 use custom_benchmark::{
-    sorts::{
-        slices::Slices, slices_unchecked::SlicesUnchecked, verus::Verus, verus_imposter::VerusImposter, Element, Sort
-    },
+    sorts::{Element, Sort},
     threshold_calc::get_threshold,
     utils::{self, get_input_array},
 };
 
-const SEQ_ARRAY_SIZES: &[usize] = &[65_536, 250_000, 1_000_000, 5_000_000];
-const PAR_ARRAY_SIZES: &[usize] = &[
-    500_000, 1_000_000, 5_000_000,
-    50_000_000,
-    100_000_000
-    ];
+// const SEQ_ARRAY_SIZES: &[usize] = &[65_536, 250_000, 1_000_000, 5_000_000];
+const SEQ_ARRAY_SIZES: &[usize] = &[];
+// const SEQ_ARRAY_SIZES: &[usize] = &[65_536];
+const PAR_ARRAY_SIZES: &[usize] = &[500_000, 1_000_000, 5_000_000, 50_000_000, 100_000_000];
+// const PAR_ARRAY_SIZES: &[usize] = &[1_000_000];
+// const SAMPLES_PER_SIZE: u32 = 5;
 const SAMPLES_PER_SIZE: u32 = 100;
+const BENCHED_SORTS: &[Sort] = &[
+    Sort::Slices,
+    Sort::SlicesUnchecked,
+    Sort::Verus,
+    Sort::NakedVerus,
+    Sort::SlicesUncheckedVspawn,
+];
 
-fn bench_sort<S: Sort>(input: &Vec<Element>, parallel: bool) -> Duration {
+fn bench_sort(sort: &Sort, input: &Vec<Element>, parallel: bool) -> Duration {
     let size = input.len();
     let input = input.clone();
-    let (mut input, mut buf) = S::prepare_array(input);
+    let (mut input, mut buf) = sort.prepare_array(input);
     let mut run: Box<dyn FnMut()> = if parallel {
         let threshold = get_threshold(size);
-        Box::new(move || S::sort_parallel(&mut input, &mut buf, threshold))
+        Box::new(move || sort.sort_parallel(&mut input, &mut buf, threshold))
     } else {
-        Box::new(|| S::sort(&mut input, &mut buf))
+        Box::new(|| sort.sort(&mut input, &mut buf))
     };
     let start = Instant::now();
     run();
@@ -61,55 +66,38 @@ fn estimate_time(parallel: bool, sequential: bool) -> Duration {
     time
 }
 
-fn bench_sorts_once(
-    input: &Vec<Element>,
-    parallel: bool,
-) -> (Duration, Duration, Duration, Duration) {
-    (
-        bench_sort::<Verus>(input, parallel),
-        bench_sort::<Slices>(input, parallel),
-        bench_sort::<SlicesUnchecked>(input, parallel),
-        bench_sort::<VerusImposter>(input, parallel),
-    )
+fn bench_sorts_once(input: &Vec<Element>, parallel: bool) -> HashMap<Sort, Duration> {
+    BENCHED_SORTS
+        .iter()
+        .map(|sort| (*sort, bench_sort(sort, input, parallel)))
+        .collect()
 }
 
 type Micros = u128;
 
-/// Returns map : sort_name -> [time in micros]
-type SortsSample = HashMap<&'static str, Vec<Micros>>;
+/// Returns map : sort -> [time in micros]
+type SortsSample = HashMap<Sort, Vec<Micros>>;
 
 fn bench_sorts_with_size(size: usize, parallel: bool) -> SortsSample {
     println!("benchmarking size = {size}");
 
-    let mut res = [
-        (Verus::name(), vec![]),
-        (Slices::name(), vec![]),
-        (SlicesUnchecked::name(), vec![]),
-        (VerusImposter::name(), vec![]),
-    ]
-    .into_iter()
-    .collect::<HashMap<_, _>>();
+    let mut res = BENCHED_SORTS
+        .iter()
+        .map(|s| (*s, vec![]))
+        .into_iter()
+        .collect::<HashMap<_, _>>();
 
     let mut progress: f32 = 0.0;
     let fraction = 10. / SAMPLES_PER_SIZE as f32;
     print!("{progress:.0} ");
     for _ in 0..SAMPLES_PER_SIZE {
         let input = utils::get_input_array(size);
-        let (verus, slices, slices_unchecked, naked_verus) = {
-            let x = bench_sorts_once(&input, parallel);
-            (
-                x.0.as_micros(),
-                x.1.as_micros(),
-                x.2.as_micros(),
-                x.3.as_micros(),
-            )
-        };
-        res.get_mut(&Verus::name()).unwrap().push(verus);
-        res.get_mut(&Slices::name()).unwrap().push(slices);
-        res.get_mut(&SlicesUnchecked::name())
-            .unwrap()
-            .push(slices_unchecked);
-        res.get_mut(&VerusImposter::name()).unwrap().push(naked_verus);
+        let micros = bench_sorts_once(&input, parallel)
+            .into_iter()
+            .map(|(s, d)| (s, d.as_micros()));
+        for (s, d) in micros {
+            res.get_mut(&s).unwrap().push(d);
+        }
 
         progress += fraction;
         print!("{progress:.0} ");
@@ -158,10 +146,6 @@ struct Args {
     #[arg(long = "out", value_name = "FILE")]
     out: Option<PathBuf>,
 }
-
-// fn print_stats(stats: &HashMap<&'static str, SortStats>) {
-//     map_values(stats, |stats| map_values(stats, |stats| map_v))
-// }
 
 fn main() {
     let args = Args::parse();
