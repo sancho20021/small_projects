@@ -8,8 +8,7 @@ use std::{
 use clap::{Parser, arg, command};
 use custom_benchmark::{
     sorts::{
-        Element, Sort, naked_verus::NakedVerus, slices::Slices, slices_unchecked::SlicesUnchecked,
-        verus::Verus,
+        slices::Slices, slices_unchecked::SlicesUnchecked, verus::Verus, verus_imposter::VerusImposter, Element, Sort
     },
     threshold_calc::get_threshold,
     utils::{self, get_input_array},
@@ -70,7 +69,7 @@ fn bench_sorts_once(
         bench_sort::<Verus>(input, parallel),
         bench_sort::<Slices>(input, parallel),
         bench_sort::<SlicesUnchecked>(input, parallel),
-        bench_sort::<NakedVerus>(input, parallel),
+        bench_sort::<VerusImposter>(input, parallel),
     )
 }
 
@@ -86,7 +85,7 @@ fn bench_sorts_with_size(size: usize, parallel: bool) -> SortsSample {
         (Verus::name(), vec![]),
         (Slices::name(), vec![]),
         (SlicesUnchecked::name(), vec![]),
-        (NakedVerus::name(), vec![]),
+        (VerusImposter::name(), vec![]),
     ]
     .into_iter()
     .collect::<HashMap<_, _>>();
@@ -110,7 +109,7 @@ fn bench_sorts_with_size(size: usize, parallel: bool) -> SortsSample {
         res.get_mut(&SlicesUnchecked::name())
             .unwrap()
             .push(slices_unchecked);
-        res.get_mut(&NakedVerus::name()).unwrap().push(naked_verus);
+        res.get_mut(&VerusImposter::name()).unwrap().push(naked_verus);
 
         progress += fraction;
         print!("{progress:.0} ");
