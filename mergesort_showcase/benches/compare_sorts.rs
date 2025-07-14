@@ -2,29 +2,31 @@ use std::time::Duration;
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use mergesort_showcase::{
-    single_array_optimized::SingleArrayOptimized, single_array_sort::SingleArray, slices_sort::Slices, slices_unchecked_sort::SlicesUnchecked, threshold_calc::get_threshold
+    single_array_sort::SingleArray, slices_sort::Slices, slices_unchecked_sort::SlicesUnchecked,
+    threshold_calc::get_threshold,
 };
 
 use crate::utils::bench_sort;
 
 const SEQ_ARRAY_SIZES: &[usize] = &[
-    512, 2_048, 16_384, 65_536, 250_000,
-    1_000_000,
-    5_000_000, 10_000_000,
+    // 512, 2_048, 16_384, 65_536, 250_000,
+    // 1_000_000,
+    // 5_000_000, 10_000_000,
 ];
 const PAR_ARRAY_SIZES: &[usize] = &[
-    250_000,
-    500_000,
-    2_000_000,
+    // 250_000,
+    // 500_000,
+    // 2_000_000,
     8_000_000,
-    16_000_000,
-    64_000_000,
-    100_000_000,
+    // 16_000_000,
+    // 64_000_000,
+    // 100_000_000,
 ];
 
 fn config() -> Criterion {
-    Criterion::default().sample_size(30)
-    .measurement_time(Duration::from_secs(50))
+    Criterion::default()
+        .sample_size(10)
+        // .measurement_time(Duration::from_secs(50))
 }
 
 fn bench_sequential_sorts(c: &mut Criterion) {
@@ -34,7 +36,6 @@ fn bench_sequential_sorts(c: &mut Criterion) {
         bench_sort::<Slices>(&mut group, size, threshold, "Slices");
         bench_sort::<SlicesUnchecked>(&mut group, size, threshold, "Slices Unchecked");
         bench_sort::<SingleArray>(&mut group, size, threshold, "Single Array");
-        bench_sort::<SingleArrayOptimized>(&mut group, size, threshold, "Single Array Optimized");
     }
     group.finish();
 }
@@ -44,9 +45,8 @@ fn bench_parallel_sorts(c: &mut Criterion) {
     for &size in PAR_ARRAY_SIZES {
         let threshold = get_threshold(size);
         bench_sort::<Slices>(&mut group, size, threshold, "Slices");
-        bench_sort::<SlicesUnchecked>(&mut group, size, threshold, "Slices Unchecked");
+        // bench_sort::<SlicesUnchecked>(&mut group, size, threshold, "Slices Unchecked");
         bench_sort::<SingleArray>(&mut group, size, threshold, "Single Array");
-        bench_sort::<SingleArrayOptimized>(&mut group, size, threshold, "Single Array Optimized");
     }
     group.finish();
 }

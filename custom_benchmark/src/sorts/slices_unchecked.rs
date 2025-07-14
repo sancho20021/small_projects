@@ -1,4 +1,4 @@
-use crate::Sort;
+use crate::sorts::{Element, Sort};
 
 fn copy(from: &[i32], mut from_lo: usize, from_hi: usize, to: &mut [i32], mut to_lo: usize) {
     while from_lo < from_hi {
@@ -76,15 +76,30 @@ fn _merge_sort_parallel(arr: &mut [i32], helper_buf: &mut [i32], threshold: usiz
 
 pub struct SlicesUnchecked;
 impl Sort for SlicesUnchecked {
-    fn sort(input: &mut [i32], threshold: usize) {
-        let mut helper_buf = vec![0; input.len()];
-        _merge_sort_parallel(input, &mut helper_buf, threshold);
+    type Array = Vec<Element>;
+
+    fn prepare_array(input: Vec<Element>) -> (Self::Array, Self::Array) {
+        let buf = vec![0; input.len()];
+        (input, buf)
+    }
+
+    fn sort(input: &mut Self::Array, buf: &mut Self::Array) {
+        merge_sort(input, buf);
+    }
+
+    fn sort_parallel(input: &mut Self::Array, buf: &mut Self::Array, threshold: usize) {
+        _merge_sort_parallel(input, buf, threshold);
+    }
+
+    fn name() -> &'static str {
+        "slices unchecked"
     }
 }
 
 #[test]
-fn test_seq() {
+fn test() {
     let mut a = vec![2, 3, 5, 1, 4];
-    SlicesUnchecked::sort(&mut a, 5);
+    let mut buf = vec![0; 5];
+    _merge_sort_parallel(&mut a, &mut buf, 2);
     assert_eq!(a, vec![1, 2, 3, 4, 5]);
 }

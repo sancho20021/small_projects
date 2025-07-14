@@ -204,10 +204,6 @@ pub fn merge_sort_threadpool<T: Ord + Send + Copy>(
 mod tests {
     use std::sync::Arc;
 
-    use disjoint_mut_test::disjoint_verified::{
-        self, exec_pcell::Array, split_at::ArrayAbstraction,
-    };
-
     use super::{merge_sort, merge_sort_parallel, merge_sort_threadpool};
 
     #[test]

@@ -1,0 +1,9 @@
+[package]
+name = "custom_benchmark"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.32", features = ["derive"] }
+disjoint_mut_test = { path = "../disjoint_mut_test"}
+rand = "0.9.1"

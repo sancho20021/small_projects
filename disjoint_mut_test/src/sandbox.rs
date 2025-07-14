@@ -3,7 +3,6 @@ use vstd::prelude::*;
 verus! {
 
 use vstd::simple_pptr::PPtr;
-use vstd::simple_pptr::PointsTo;
 
 type UID = PPtr<()>;
 
