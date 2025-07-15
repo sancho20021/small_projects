@@ -12,10 +12,21 @@ use custom_benchmark::{
     threshold_calc::get_threshold,
     utils::{self, get_input_array},
 };
+use rand::seq::SliceRandom;
 
 const SEQ_ARRAY_SIZES: &[usize] = &[10_000, 100_000, 1_000_000];
-// const SEQ_ARRAY_SIZES: &[usize] = &[10_000];
-const PAR_ARRAY_SIZES: &[usize] = &[10_000, 100_000, 1_000_000, 10_000_000, 100_000_000];
+// const SEQ_ARRAY_SIZES: &[usize] = &[];
+const PAR_ARRAY_SIZES: &[usize] = &[
+    10_000,
+    100_000,
+    1_000_000,
+    2_000_000,
+    5_000_000,
+    10_000_000,
+    20_000_000,
+    50_000_000,
+    100_000_000,
+];
 // const PAR_ARRAY_SIZES: &[usize] = &[1_000_000];
 // const SAMPLES_PER_SIZE: u32 = 5;
 // const fn samples_per_size(size: usize) -> u32 {
@@ -23,21 +34,23 @@ const PAR_ARRAY_SIZES: &[usize] = &[10_000, 100_000, 1_000_000, 10_000_000, 100_
 // }
 const fn samples_per_size(size: usize) -> u32 {
     if size <= 100_000 {
-        400
+        4000
     } else if size <= 1_000_000 {
-        200
+        2000
     } else if size <= 10_000_000 {
-        100
+        1000
     } else {
-        70
+        700
     }
 }
-const BENCHED_SEQ_SORTS: &[SeqSort] = &[SeqSort::Slices, SeqSort::SlicesUnchecked, SeqSort::Verus];
+const BENCHED_SEQ_SORTS: &[SeqSort] = &[SeqSort::SlicesUnchecked, SeqSort::Verus, SeqSort::Slices];
 const BENCHED_PAR_SORTS: &[ParSort] = &[
-    ParSort::Slices,
     ParSort::SlicesUnchecked,
     ParSort::Verus,
-    ParSort::Rayon,
+    ParSort::Slices,
+    // ParSort::Rayon,
+    // ParSort::NakedVerus,
+    // ParSort::NakedVerusRayon,
 ];
 
 fn bench_sort_seq(sort: &SeqSort, input: &Vec<Element>) -> Duration {
@@ -62,6 +75,11 @@ fn bench_sorts_once<S: HasName>(
     bench: impl Fn(&S, &Vec<Element>) -> Duration,
     input: &Vec<Element>,
 ) -> HashMap<SortName, Duration> {
+    // This is to shuffle the order in which execute the algorithms
+    // (to minimize the effect of order)
+    let mut sorts = sorts.iter().collect::<Vec<_>>();
+    sorts.shuffle(&mut rand::rng());
+
     sorts
         .iter()
         .map(|sort| (sort.name(), bench(sort, input)))

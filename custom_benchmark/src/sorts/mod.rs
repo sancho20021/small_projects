@@ -5,6 +5,7 @@ use enum_iterator::{Sequence, all};
 use rayon::slice::ParallelSliceMut;
 
 pub mod naked_verus;
+pub mod naked_verus_rayon;
 pub mod slices;
 pub mod slices_unchecked;
 pub mod slices_unchecked_vspawn;
@@ -55,6 +56,7 @@ pub enum ParSort {
     SlicesUnchecked,
     Verus,
     NakedVerus,
+    NakedVerusRayon,
     SlicesUncheckedVspawn,
     Rayon,
 }
@@ -83,6 +85,7 @@ impl HasName for ParSort {
             Self::NakedVerus => "naked verus",
             Self::SlicesUncheckedVspawn => "vspawn slices unchecked",
             Self::Rayon => "rayon",
+            Self::NakedVerusRayon => "naked verus rayon",
         }
     }
 }
@@ -150,6 +153,12 @@ impl ParSort {
                 let buf_a = naked_verus::Array(buf.as_ptr() as *mut i32);
                 naked_verus::_merge_sort_parallel(input_a, 0, input.len(), buf_a, threshold)
             }
+            ParSort::NakedVerusRayon => {
+                let (input, buf) = (input.unwrap_as_vec(), buf.unwrap_as_vec());
+                let input_a = naked_verus::Array(input.as_ptr() as *mut i32);
+                let buf_a = naked_verus::Array(buf.as_ptr() as *mut i32);
+                naked_verus_rayon::_merge_sort_parallel(input_a, 0, input.len(), buf_a)
+            }
             ParSort::SlicesUncheckedVspawn => normal_sort_par(
                 slices_unchecked_vspawn::_merge_sort_parallel,
                 input,
@@ -174,32 +183,6 @@ impl Sort {
             _ => InputArray::Vec(input),
         };
         (mapper(input), mapper(buf))
-    }
-}
-
-impl std::fmt::Debug for SeqSort {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            Self::Slices => "slices",
-            Self::SlicesUnchecked => "slices unchecked",
-            Self::Verus => "verus",
-            Self::NakedVerus => "naked verus",
-        };
-        write!(f, "\"{s}\"")
-    }
-}
-
-impl std::fmt::Debug for ParSort {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            Self::Slices => "slices",
-            Self::SlicesUnchecked => "slices unchecked",
-            Self::Verus => "verus",
-            Self::NakedVerus => "naked verus",
-            Self::SlicesUncheckedVspawn => "vspawn slices unchecked",
-            Self::Rayon => "rayon",
-        };
-        write!(f, "\"{s}\"")
     }
 }
 

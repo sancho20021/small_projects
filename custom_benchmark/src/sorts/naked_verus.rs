@@ -20,7 +20,7 @@ impl Array {
     }
 }
 
-fn copy(from: Array, mut from_lo: usize, from_hi: usize, to: Array, mut to_lo: usize) {
+pub fn copy(from: Array, mut from_lo: usize, from_hi: usize, to: Array, mut to_lo: usize) {
     while from_lo < from_hi {
         to.set(to_lo, from.read(from_lo));
         from_lo += 1;
@@ -28,7 +28,7 @@ fn copy(from: Array, mut from_lo: usize, from_hi: usize, to: Array, mut to_lo: u
     }
 }
 
-fn merge(
+pub fn merge(
     array: Array,
     mut left_lo: usize,
     mut right_lo: usize,
