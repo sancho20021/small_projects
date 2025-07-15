@@ -2,6 +2,7 @@ use disjoint_mut_test::mergesort::ArrayForSorting;
 
 #[cfg(test)]
 use enum_iterator::{Sequence, all};
+use rayon::slice::ParallelSliceMut;
 
 pub mod naked_verus;
 pub mod slices;
@@ -40,12 +41,56 @@ impl InputArray {
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 #[cfg_attr(test, derive(Sequence))]
-pub enum Sort {
+pub enum SeqSort {
+    Slices,
+    SlicesUnchecked,
+    Verus,
+    NakedVerus,
+}
+
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[cfg_attr(test, derive(Sequence))]
+pub enum ParSort {
     Slices,
     SlicesUnchecked,
     Verus,
     NakedVerus,
     SlicesUncheckedVspawn,
+    Rayon,
+}
+
+pub trait HasName {
+    fn name(&self) -> &'static str;
+}
+
+impl HasName for SeqSort {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Slices => "slices",
+            Self::SlicesUnchecked => "slices unchecked",
+            Self::Verus => "verus",
+            Self::NakedVerus => "naked verus",
+        }
+    }
+}
+
+impl HasName for ParSort {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Slices => "slices",
+            Self::SlicesUnchecked => "slices unchecked",
+            Self::Verus => "verus",
+            Self::NakedVerus => "naked verus",
+            Self::SlicesUncheckedVspawn => "vspawn slices unchecked",
+            Self::Rayon => "rayon",
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum Sort {
+    Seq(SeqSort),
+    Par(ParSort),
 }
 
 fn normal_sort(
@@ -65,71 +110,86 @@ fn normal_sort_par(
     sort(input.unwrap_as_vec(), buf.unwrap_as_vec(), threshold)
 }
 
-impl Sort {
-    pub fn prepare_array(&self, input: Vec<Element>) -> (InputArray, InputArray) {
-        let buf = vec![0; input.len()];
-        let mapper = |input| {
-            if *self == Sort::Verus {
-                InputArray::Verus(ArrayForSorting::new(input))
-            } else {
-                InputArray::Vec(input)
-            }
-        };
-        (mapper(input), mapper(buf))
-    }
-
+impl SeqSort {
     pub fn sort(&self, input: &mut InputArray, buf: &mut InputArray) {
         match self {
-            Sort::Slices => normal_sort(slices::merge_sort, input, buf),
-            Sort::SlicesUnchecked => normal_sort(slices_unchecked::merge_sort, input, buf),
-            Sort::Verus => disjoint_mut_test::mergesort::merge_sort(
+            SeqSort::Slices => normal_sort(slices::merge_sort, input, buf),
+            SeqSort::SlicesUnchecked => normal_sort(slices_unchecked::merge_sort, input, buf),
+            SeqSort::Verus => disjoint_mut_test::mergesort::merge_sort(
                 input.unwrap_as_verus(),
                 buf.unwrap_as_verus(),
             ),
-            Sort::NakedVerus => {
+            SeqSort::NakedVerus => {
                 let (input, buf) = (input.unwrap_as_vec(), buf.unwrap_as_vec());
                 let input_a = naked_verus::Array(input.as_ptr() as *mut i32);
                 let buf_a = naked_verus::Array(buf.as_ptr() as *mut i32);
                 naked_verus::merge_sort(input_a, 0, input.len(), buf_a)
             }
-            Sort::SlicesUncheckedVspawn => {
-                normal_sort(slices_unchecked_vspawn::merge_sort, input, buf)
-            }
         }
     }
+}
 
+impl ParSort {
     pub fn sort_parallel(&self, input: &mut InputArray, buf: &mut InputArray, threshold: usize) {
         match self {
-            Sort::Slices => normal_sort_par(slices::_merge_sort_parallel, input, buf, threshold),
-            Sort::SlicesUnchecked => normal_sort_par(
+            ParSort::Slices => normal_sort_par(slices::_merge_sort_parallel, input, buf, threshold),
+            ParSort::SlicesUnchecked => normal_sort_par(
                 slices_unchecked::_merge_sort_parallel,
                 input,
                 buf,
                 threshold,
             ),
-            Sort::Verus => disjoint_mut_test::mergesort::merge_sort_parallel(
+            ParSort::Verus => disjoint_mut_test::mergesort::merge_sort_parallel(
                 input.unwrap_as_verus(),
                 buf.unwrap_as_verus(),
                 threshold,
             ),
-            Sort::NakedVerus => {
+            ParSort::NakedVerus => {
                 let (input, buf) = (input.unwrap_as_vec(), buf.unwrap_as_vec());
                 let input_a = naked_verus::Array(input.as_ptr() as *mut i32);
                 let buf_a = naked_verus::Array(buf.as_ptr() as *mut i32);
                 naked_verus::_merge_sort_parallel(input_a, 0, input.len(), buf_a, threshold)
             }
-            Sort::SlicesUncheckedVspawn => normal_sort_par(
+            ParSort::SlicesUncheckedVspawn => normal_sort_par(
                 slices_unchecked_vspawn::_merge_sort_parallel,
                 input,
                 buf,
                 threshold,
             ),
+            ParSort::Rayon => {
+                normal_sort_par(|input, _, _| Ok(input.par_sort()), input, buf, threshold)
+            }
         }
         .unwrap();
     }
 }
 
-impl std::fmt::Debug for Sort {
+impl Sort {
+    pub fn prepare_array(&self, input: Vec<Element>) -> (InputArray, InputArray) {
+        let buf = vec![0; input.len()];
+        let mapper = |input| match self {
+            Sort::Seq(SeqSort::Verus) | Sort::Par(ParSort::Verus) => {
+                InputArray::Verus(ArrayForSorting::new(input))
+            }
+            _ => InputArray::Vec(input),
+        };
+        (mapper(input), mapper(buf))
+    }
+}
+
+impl std::fmt::Debug for SeqSort {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Slices => "slices",
+            Self::SlicesUnchecked => "slices unchecked",
+            Self::Verus => "verus",
+            Self::NakedVerus => "naked verus",
+        };
+        write!(f, "\"{s}\"")
+    }
+}
+
+impl std::fmt::Debug for ParSort {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             Self::Slices => "slices",
@@ -137,17 +197,29 @@ impl std::fmt::Debug for Sort {
             Self::Verus => "verus",
             Self::NakedVerus => "naked verus",
             Self::SlicesUncheckedVspawn => "vspawn slices unchecked",
+            Self::Rayon => "rayon",
         };
-        write!(f, "{s}")
+        write!(f, "\"{s}\"")
     }
 }
 
 #[test]
-fn test_all_sorts() {
-    for sort in all::<Sort>() {
+fn test_all_seq_sorts() {
+    for sort in all::<SeqSort>() {
         let input = vec![2, 3, 5, 1, 4];
-        let (mut input, mut buf) = sort.prepare_array(input);
+        let (mut input, mut buf) = Sort::Seq(sort).prepare_array(input);
         sort.sort(&mut input, &mut buf);
+        let input = input.clone_to_vec();
+        assert_eq!(input, vec![1, 2, 3, 4, 5]);
+    }
+}
+
+#[test]
+fn test_all_par_sorts() {
+    for sort in all::<ParSort>() {
+        let input = vec![2, 3, 5, 1, 4];
+        let (mut input, mut buf) = Sort::Par(sort).prepare_array(input);
+        sort.sort_parallel(&mut input, &mut buf, 2);
         let input = input.clone_to_vec();
         assert_eq!(input, vec![1, 2, 3, 4, 5]);
     }

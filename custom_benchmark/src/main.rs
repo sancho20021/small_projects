@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt::Debug,
     io::Write,
     path::PathBuf,
     time::{Duration, Instant},
@@ -7,126 +8,142 @@ use std::{
 
 use clap::{Parser, arg, command};
 use custom_benchmark::{
-    sorts::{Element, Sort},
+    sorts::{Element, HasName, ParSort, SeqSort, Sort},
     threshold_calc::get_threshold,
     utils::{self, get_input_array},
 };
 
-// const SEQ_ARRAY_SIZES: &[usize] = &[65_536, 250_000, 1_000_000, 5_000_000];
-const SEQ_ARRAY_SIZES: &[usize] = &[];
-// const SEQ_ARRAY_SIZES: &[usize] = &[65_536];
-const PAR_ARRAY_SIZES: &[usize] = &[500_000, 1_000_000, 5_000_000, 50_000_000, 100_000_000];
+const SEQ_ARRAY_SIZES: &[usize] = &[10_000, 100_000, 1_000_000];
+// const SEQ_ARRAY_SIZES: &[usize] = &[10_000];
+const PAR_ARRAY_SIZES: &[usize] = &[10_000, 100_000, 1_000_000, 10_000_000, 100_000_000];
 // const PAR_ARRAY_SIZES: &[usize] = &[1_000_000];
 // const SAMPLES_PER_SIZE: u32 = 5;
-const SAMPLES_PER_SIZE: u32 = 100;
-const BENCHED_SORTS: &[Sort] = &[
-    Sort::Slices,
-    Sort::SlicesUnchecked,
-    Sort::Verus,
-    Sort::NakedVerus,
-    Sort::SlicesUncheckedVspawn,
+// const fn samples_per_size(size: usize) -> u32 {
+//     1
+// }
+const fn samples_per_size(size: usize) -> u32 {
+    if size <= 100_000 {
+        400
+    } else if size <= 1_000_000 {
+        200
+    } else if size <= 10_000_000 {
+        100
+    } else {
+        70
+    }
+}
+const BENCHED_SEQ_SORTS: &[SeqSort] = &[SeqSort::Slices, SeqSort::SlicesUnchecked, SeqSort::Verus];
+const BENCHED_PAR_SORTS: &[ParSort] = &[
+    ParSort::Slices,
+    ParSort::SlicesUnchecked,
+    ParSort::Verus,
+    ParSort::Rayon,
 ];
 
-fn bench_sort(sort: &Sort, input: &Vec<Element>, parallel: bool) -> Duration {
-    let size = input.len();
+fn bench_sort_seq(sort: &SeqSort, input: &Vec<Element>) -> Duration {
     let input = input.clone();
-    let (mut input, mut buf) = sort.prepare_array(input);
-    let mut run: Box<dyn FnMut()> = if parallel {
-        let threshold = get_threshold(size);
-        Box::new(move || sort.sort_parallel(&mut input, &mut buf, threshold))
-    } else {
-        Box::new(|| sort.sort(&mut input, &mut buf))
-    };
+    let (mut input, mut buf) = Sort::Seq(*sort).prepare_array(input);
     let start = Instant::now();
-    run();
+    sort.sort(&mut input, &mut buf);
     start.elapsed()
+}
+
+fn bench_sort_par(sort: &ParSort, input: &Vec<Element>) -> Duration {
+    let input = input.clone();
+    let threshold = get_threshold(input.len());
+    let (mut input, mut buf) = Sort::Par(*sort).prepare_array(input);
+    let start = Instant::now();
+    sort.sort_parallel(&mut input, &mut buf, threshold);
+    start.elapsed()
+}
+
+fn bench_sorts_once<S: HasName>(
+    sorts: &[S],
+    bench: impl Fn(&S, &Vec<Element>) -> Duration,
+    input: &Vec<Element>,
+) -> HashMap<SortName, Duration> {
+    sorts
+        .iter()
+        .map(|sort| (sort.name(), bench(sort, input)))
+        .collect()
 }
 
 fn estimate_time(parallel: bool, sequential: bool) -> Duration {
     let mut time = Duration::ZERO;
 
-    if parallel && !PAR_ARRAY_SIZES.is_empty() {
-        let mean_size = PAR_ARRAY_SIZES.iter().cloned().sum::<usize>() / PAR_ARRAY_SIZES.len();
-        let input = get_input_array(mean_size);
-        let start = Instant::now();
-        bench_sorts_once(&input, true);
-        let time_spent = start.elapsed();
-        let time_spent = time_spent * SAMPLES_PER_SIZE * PAR_ARRAY_SIZES.len() as u32;
-        time += time_spent;
+    if parallel {
+        for &size in PAR_ARRAY_SIZES {
+            let input = get_input_array(size);
+            let start = Instant::now();
+            bench_sorts_once(BENCHED_PAR_SORTS, bench_sort_par, &input);
+            let time_spent = start.elapsed();
+            time += time_spent * samples_per_size(size);
+        }
     };
-    if sequential && !SEQ_ARRAY_SIZES.is_empty() {
-        let mean_size = SEQ_ARRAY_SIZES.iter().cloned().sum::<usize>() / SEQ_ARRAY_SIZES.len();
-        let input = get_input_array(mean_size);
-        let start = Instant::now();
-        bench_sorts_once(&input, false);
-        let time_spent = start.elapsed();
-        let time_spent = time_spent * SAMPLES_PER_SIZE * SEQ_ARRAY_SIZES.len() as u32;
-        time += time_spent;
+    if sequential {
+        for &size in SEQ_ARRAY_SIZES {
+            let input = get_input_array(size);
+            let start = Instant::now();
+            bench_sorts_once(BENCHED_SEQ_SORTS, bench_sort_seq, &input);
+            let time_spent = start.elapsed();
+            time += time_spent * samples_per_size(size);
+        }
     }
     time
 }
 
-fn bench_sorts_once(input: &Vec<Element>, parallel: bool) -> HashMap<Sort, Duration> {
-    BENCHED_SORTS
-        .iter()
-        .map(|sort| (*sort, bench_sort(sort, input, parallel)))
-        .collect()
-}
-
 type Micros = u128;
-
-/// Returns map : sort -> [time in micros]
-type SortsSample = HashMap<Sort, Vec<Micros>>;
-
-fn bench_sorts_with_size(size: usize, parallel: bool) -> SortsSample {
-    println!("benchmarking size = {size}");
-
-    let mut res = BENCHED_SORTS
-        .iter()
-        .map(|s| (*s, vec![]))
-        .into_iter()
-        .collect::<HashMap<_, _>>();
-
-    let mut progress: f32 = 0.0;
-    let fraction = 10. / SAMPLES_PER_SIZE as f32;
-    print!("{progress:.0} ");
-    for _ in 0..SAMPLES_PER_SIZE {
-        let input = utils::get_input_array(size);
-        let micros = bench_sorts_once(&input, parallel)
-            .into_iter()
-            .map(|(s, d)| (s, d.as_micros()));
-        for (s, d) in micros {
-            res.get_mut(&s).unwrap().push(d);
-        }
-
-        progress += fraction;
-        print!("{progress:.0} ");
-        let _ = std::io::stdout().flush();
-    }
-    println!();
-    res
-}
-
+type SortName = &'static str;
+type SortsSample = HashMap<SortName, Vec<Micros>>;
 type SortStats = HashMap<usize, SortsSample>;
 
-fn _bench_sorts(sizes: &[usize], parallel: bool) -> SortStats {
+fn _bench_sorts<S: HasName>(
+    sorts: &[S],
+    bench: impl Fn(&S, &Vec<Element>) -> Duration,
+    sizes: &[usize],
+) -> SortStats {
     let mut res = HashMap::new();
-    for size in sizes {
-        res.insert(*size, bench_sorts_with_size(*size, parallel));
+    for &size in sizes {
+        println!("benchmarking size = {size}");
+        let mut stats = sorts
+            .iter()
+            .map(|s| (s.name(), vec![]))
+            .into_iter()
+            .collect::<HashMap<_, _>>();
+
+        let mut progress: f32 = 0.0;
+        let fraction = 10. / samples_per_size(size) as f32;
+        print!("{progress:.0} ");
+        for _ in 0..samples_per_size(size) {
+            let input = utils::get_input_array(size);
+            let micros = bench_sorts_once(sorts, &bench, &input)
+                .into_iter()
+                .map(|(s, d)| (s, d.as_micros()));
+            for (s, d) in micros {
+                stats.get_mut(&s).unwrap().push(d);
+            }
+
+            progress += fraction;
+            print!("{progress:.0} ");
+            let _ = std::io::stdout().flush();
+        }
+        println!();
+
+        res.insert(size, stats);
     }
     res
 }
 
-fn bench_sorts() -> SortStats {
+fn bench_sorts_seq() -> SortStats {
     println!("Starting sequential benchmark");
-    let res = _bench_sorts(SEQ_ARRAY_SIZES, false);
+    let res = _bench_sorts(BENCHED_SEQ_SORTS, bench_sort_seq, SEQ_ARRAY_SIZES);
     println!("Finishing sequential benchmark");
     res
 }
 
 fn bench_sorts_parallel() -> SortStats {
     println!("Starting parallel benchmark");
-    let res = _bench_sorts(PAR_ARRAY_SIZES, true);
+    let res = _bench_sorts(BENCHED_PAR_SORTS, bench_sort_par, PAR_ARRAY_SIZES);
     println!("Finishing parallel benchmark");
     res
 }
@@ -161,17 +178,17 @@ fn main() {
         time.as_millis() / 1000 / 60
     );
 
-    let mut res: HashMap<&'static str, SortStats> = HashMap::new();
+    let mut res: HashMap<SortName, SortStats> = HashMap::new();
 
     if args.sequential {
-        res.insert("sequential", bench_sorts());
+        res.insert("sequential", bench_sorts_seq());
     }
 
     if args.parallel {
         res.insert("parallel", bench_sorts_parallel());
     }
 
-    let output = format!("{res:#?}\n");
+    let output = serde_json::to_string_pretty(&res).unwrap();
 
     match &args.out {
         Some(path) => {
