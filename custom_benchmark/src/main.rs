@@ -34,18 +34,19 @@ const PAR_ARRAY_SIZES: &[usize] = &[
 // }
 const fn samples_per_size(size: usize) -> u32 {
     if size <= 100_000 {
-        4000
+        400
     } else if size <= 1_000_000 {
-        2000
+        200
     } else if size <= 10_000_000 {
-        1000
+        100
     } else {
-        700
+        100
     }
 }
 const BENCHED_SEQ_SORTS: &[SeqSort] = &[SeqSort::SlicesUnchecked, SeqSort::Verus, SeqSort::Slices];
 const BENCHED_PAR_SORTS: &[ParSort] = &[
     ParSort::SlicesUnchecked,
+    // ParSort::SlicesUncheckedVspawn,
     ParSort::Verus,
     ParSort::Slices,
     // ParSort::Rayon,
@@ -189,12 +190,12 @@ fn main() {
         std::process::exit(1);
     }
 
-    println!("Estimating time");
-    let time = estimate_time(args.parallel, args.sequential);
-    println!(
-        "Benchmarking will take approximately {} minutes",
-        time.as_millis() / 1000 / 60
-    );
+    // println!("Estimating time");
+    // let time = estimate_time(args.parallel, args.sequential);
+    // println!(
+    //     "Benchmarking will take approximately {} minutes",
+    //     time.as_millis() / 1000 / 60
+    // );
 
     let mut res: HashMap<SortName, SortStats> = HashMap::new();
 
