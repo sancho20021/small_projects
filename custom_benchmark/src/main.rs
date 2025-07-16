@@ -14,18 +14,18 @@ use custom_benchmark::{
 };
 use rand::seq::SliceRandom;
 
-const SEQ_ARRAY_SIZES: &[usize] = &[10_000, 100_000, 1_000_000];
-// const SEQ_ARRAY_SIZES: &[usize] = &[];
+// const SEQ_ARRAY_SIZES: &[usize] = &[10_000, 100_000, 1_000_000];
+const SEQ_ARRAY_SIZES: &[usize] = &[];
 const PAR_ARRAY_SIZES: &[usize] = &[
-    10_000,
-    100_000,
-    1_000_000,
-    2_000_000,
-    5_000_000,
+    // 10_000,
+    // 100_000,
+    // 1_000_000,
+    // 2_000_000,
+    // 5_000_000,
     10_000_000,
     20_000_000,
-    50_000_000,
-    100_000_000,
+    // 50_000_000,
+    // 100_000_000,
 ];
 // const PAR_ARRAY_SIZES: &[usize] = &[1_000_000];
 // const SAMPLES_PER_SIZE: u32 = 5;
@@ -34,22 +34,37 @@ const PAR_ARRAY_SIZES: &[usize] = &[
 // }
 const fn samples_per_size(size: usize) -> u32 {
     if size <= 100_000 {
-        4000
+        400
     } else if size <= 1_000_000 {
-        2000
+        200
     } else if size <= 10_000_000 {
-        1000
+        100
     } else {
-        700
+        100
     }
 }
-const BENCHED_SEQ_SORTS: &[SeqSort] = &[SeqSort::SlicesUnchecked, SeqSort::Verus, SeqSort::Slices];
+const BENCHED_SEQ_SORTS: &[SeqSort] = &[
+    SeqSort::SlicesUnchecked, SeqSort::Verus, SeqSort::Slices
+    ];
 const BENCHED_PAR_SORTS: &[ParSort] = &[
-    ParSort::SlicesUnchecked,
-    ParSort::Verus,
-    ParSort::Slices,
+    // ParSort::SlicesUnchecked,
+    // ParSort::SlicesUncheckedVspawn,
+    // ParSort::Verus,
+    // ParSort::VerusNoGhost,
+    // ParSort::VerusNoGhostLessArcs,
+    // ParSort::VerusNoGhostNoArc,
+    // ParSort::VerusNoGhostMuninit,
+    ParSort::VerusLessArcs,
+    // ParSort::Slices,
+    // ParSort::ImposterSlices,
+    // ParSort::SlicesBlackbox,
     // ParSort::Rayon,
-    // ParSort::NakedVerus,
+    ParSort::NakedVerus,
+    // ParSort::NakedVerusNoScope,
+    // ParSort::NakedVerusArcClone,
+    // ParSort::NakedVerusArcCloneNoScope,
+    // ParSort::NakedVerusArc,
+    // ParSort::NakedVerusArcNoScope,
     // ParSort::NakedVerusRayon,
 ];
 
@@ -189,12 +204,12 @@ fn main() {
         std::process::exit(1);
     }
 
-    println!("Estimating time");
-    let time = estimate_time(args.parallel, args.sequential);
-    println!(
-        "Benchmarking will take approximately {} minutes",
-        time.as_millis() / 1000 / 60
-    );
+    // println!("Estimating time");
+    // let time = estimate_time(args.parallel, args.sequential);
+    // println!(
+    //     "Benchmarking will take approximately {} minutes",
+    //     time.as_millis() / 1000 / 60
+    // );
 
     let mut res: HashMap<SortName, SortStats> = HashMap::new();
 
